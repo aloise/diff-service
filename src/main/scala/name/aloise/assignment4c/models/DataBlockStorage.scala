@@ -12,15 +12,7 @@ object DataComparisonResult extends Enumeration {
 case class DataBlock( data:Array[Byte], crc32:Int )
 
 
-case class DataBlockStorage( size:Int, blocks:Vector[DataBlock] ) {
-
-  def this( data:Array[Byte]) = {
-    this( data.length, Vector() )
-  }
-
-  def this() = {
-    this(0, Vector())
-  }
+case class DataBlockStorage( size:Int, blocks:Vector[DataBlock], blockSize:Int ) {
 
   def getDifferenceWith( other:DataBlockStorage ):Seq[DataDifferentPart] = {
     Seq()
@@ -29,6 +21,18 @@ case class DataBlockStorage( size:Int, blocks:Vector[DataBlock] ) {
 
 }
 
+
+object DataBlockStorageBuilder {
+
+  def empty = DataBlockStorage(0, Vector(), 0)
+
+  def fromArray( a:Array[Byte], blockSize:Int ) = {
+    empty
+  }
+
+
+
+}
 
 
 case class DataDifferentPart( start:Int, length:Int )
