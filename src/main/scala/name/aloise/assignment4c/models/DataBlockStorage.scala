@@ -6,7 +6,7 @@ package name.aloise.assignment4c.models
   * Time: 23:19
   */
 object DataComparisonResult extends Enumeration {
-  val Equal, DifferentSize, NotEqual = Value
+  val Equal, DifferentSize, NotEqual, IdentNotFound = Value
 }
 
 case class DataBlock( data:Array[Byte], crc32:Int )

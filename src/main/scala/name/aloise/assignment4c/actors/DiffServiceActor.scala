@@ -26,6 +26,7 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
   def receive =
     defaultBehavior( DataBlockStorageBuilder.empty, DataBlockStorageBuilder.empty, Some( DataComparisonResult.Equal, Seq() ) )
 
+
   def defaultBehavior( left:DataBlockStorage, right:DataBlockStorage, comparisonResult: ComputedResultOpt ):Receive = {
 
     case PushLeft( ident, data ) if ident == id =>
@@ -40,18 +41,22 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
 
       val result:ComputedResult = comparisonResult.getOrElse {
 
+        // size is either equal and we need to compute the difference
         if( left.size == right.size ){
           val diff = left getDifferenceWith right
           val result = if( diff.isEmpty) DataComparisonResult.Equal else DataComparisonResult.NotEqual
           ( result, diff )
 
         } else {
+          // different size - return the appropriate code
           ( DataComparisonResult.DifferentSize, Seq() )
         }
       }
 
+      // send the response
       sender ! CompareResponse( id, result._1, result._2 )
 
+      // save the computed result for future use
       context.become( defaultBehavior( left, right, Some(result) ) , discardOld = true)
 
 

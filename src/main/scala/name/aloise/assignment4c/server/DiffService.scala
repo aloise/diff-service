@@ -20,7 +20,7 @@ import scala.concurrent.Future
   * Date: 18.05.16
   * Time: 19:57
   */
-class DiffService( bindAddress:String, bindPort:Int, serviceVersion:Int = 1 ) {
+class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, serviceVersion:Int = 1 ) {
 
   implicit val system = ActorSystem("diff-service-system")
 
@@ -31,7 +31,7 @@ class DiffService( bindAddress:String, bindPort:Int, serviceVersion:Int = 1 ) {
   implicit var serverBindingFuture:Option[Future[ServerBinding]] = None
 
   val processingSystem = ActorSystem("diff-processing-service-system")
-  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor] ) )
+  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize ) )
 
   val serviceVersionPrefix = "v"+serviceVersion
 
@@ -55,6 +55,10 @@ class DiffService( bindAddress:String, bindPort:Int, serviceVersion:Int = 1 ) {
 
         case Slash( Segment( ident, Slash( Segment ( _, Uri.Path.Empty ) ) ) ) =>
           HttpResponse( 400,  entity = jsonError("wrong_input_params_left_or_right") )
+
+        case Slash( Segment( ident, Uri.Path.Empty  ) ) =>
+          // query results
+          HttpResponse( 400,  entity = jsonError("not_implemented") )
 
         case _ =>
           HttpResponse( 400,  entity = jsonError("wrong_input_params") )

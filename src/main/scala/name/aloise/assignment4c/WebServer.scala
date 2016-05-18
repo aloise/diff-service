@@ -25,7 +25,9 @@ object WebServer {
 
       val bindAddress = conf.as[Option[String]]("app.http.address").getOrElse( "localhost" )
       val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
-      val server = new DiffService(bindAddress, bindPort)
+      val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
+
+      val server = new DiffService(bindAddress, bindPort, dataBlockSize )
 
       server.start()
 
