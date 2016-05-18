@@ -1,0 +1,10 @@
+Sample Json API - Data Diff Service
+=================================
+
+Author: Igor Mordashev <erwaht@gmail.com>
+
+Built with Scala, Akka, Akka IO, SBT
+
+Requirements:
+- Java 8
+- SBT 0.13.11

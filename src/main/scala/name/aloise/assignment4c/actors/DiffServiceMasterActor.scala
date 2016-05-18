@@ -1,6 +1,6 @@
 package name.aloise.assignment4c.actors
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorRef}
 import akka.actor.Actor.Receive
 
 /**
@@ -9,8 +9,12 @@ import akka.actor.Actor.Receive
   * Time: 20:38
   */
 class DiffServiceMasterActor extends Actor {
-  override def receive: Receive = {
+
+  override def receive = defaultBehavior( Map() )
+
+  def defaultBehavior( mapping:Map[String,ActorRef] ) :Receive = {
     case _ =>
 
   }
+
 }

@@ -10,6 +10,9 @@ import akka.http.scaladsl.model.Uri.Path
 import akka.stream.ActorMaterializer
 import name.aloise.assignment4c.actors.DiffServiceMasterActor
 
+import spray.json._
+import DefaultJsonProtocol._
+
 import scala.concurrent.Future
 
 /**
@@ -30,20 +33,36 @@ class DiffService( bindAddress:String, bindPort:Int, serviceVersion:Int = 1 ) {
   val processingSystem = ActorSystem("diff-processing-service-system")
   val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor] ) )
 
-  val xxxx: Path = Path./( "v2" )
+  val serviceVersionPrefix = "v"+serviceVersion
+
+
 
   protected val requestHandler: HttpRequest => HttpResponse = {
-    case HttpRequest( GET, Uri.Path("/"), _, _, _) =>
+
+    case HttpRequest( GET, Uri.Path("/"), headers, _, _) if headers.exists( h => h.is("accept") && h.value().contains("text/html") ) =>
       HttpResponse( entity = greeting )
 
-    case HttpRequest( GET, Uri( _, _, `xxxx`, _, _ ), _, _, _ ) =>
-      HttpResponse( entity = "test - v2 - " + 1 )
+    case HttpRequest( GET, Uri.Path("/"), headers, _, _) if headers.exists( h => h.is("accept") && h.value().contains("application/json") ) =>
+      HttpResponse( entity = greetingJson )
 
-    case HttpRequest( GET, Uri( _, _, Slash( Segment( "v1", Slash( Segment( "diff", Slash( Segment( str, Slash( Segment ( "left", Uri.Path.Empty ) ) ) ) ) ) ) ), _, _ ) , _, _, _ ) =>
-      HttpResponse( entity = "test - left - " + str )
+    // Main Route - parse ID and left/right param
+    case HttpRequest( GET, Uri( _, _, Slash( Segment( `serviceVersionPrefix`, Slash( Segment( "diff", dataParts ) ) ) ), _, _ ) , _, _, _ ) =>
 
-    case HttpRequest( GET, Uri( _, _, Slash( Segment( "v1", Slash( Segment( "diff", Slash( Segment( str, Slash( Segment ( "right", Uri.Path.Empty ) ) ) ) ) ) ) ), _, _ ) , _, _, _ ) =>
-      HttpResponse( entity = "test - right - " + str )
+      // Parse the rest of the URL
+      dataParts match {
+        case Slash( Segment( ident, Slash( Segment ( leftOrRight, Uri.Path.Empty ) ) ) ) if leftOrRight == "left" || leftOrRight == "right" =>
+          processDiffRequest( ident, leftOrRight )
+
+        case Slash( Segment( ident, Slash( Segment ( _, Uri.Path.Empty ) ) ) ) =>
+          HttpResponse( 400,  entity = jsonError("wrong_input_params_left_or_right") )
+
+        case _ =>
+          HttpResponse( 400,  entity = jsonError("wrong_input_params") )
+
+      }
+
+
+
 
     case _: HttpRequest =>
       HttpResponse(404, entity = "Unknown resource!")
@@ -65,10 +84,26 @@ class DiffService( bindAddress:String, bindPort:Int, serviceVersion:Int = 1 ) {
 
   }
 
+  def processDiffRequest( ident:String, leftOrRight:String ) =
+    HttpResponse( entity = "test - left - " + ident )
+
   def greeting =
     HttpEntity(
       ContentTypes.`text/html(UTF-8)`,
       s"<!doctype html><html lang=en><head><meta charset=utf-8><title>Diff Service</title></head><body><p>Diff Service v$serviceVersion</p></body></html>"
+    )
+
+  def greetingJson =
+    HttpEntity(
+      ContentTypes.`application/json`,
+      Map( "version" -> serviceVersionPrefix, "service" -> "DiffService" ).toJson.toString
+
+    )
+
+  def jsonError( errorStr:String ) =
+    HttpEntity(
+      ContentTypes.`application/json`,
+      Map( "error" -> errorStr ).toJson.toString
     )
 
 }
