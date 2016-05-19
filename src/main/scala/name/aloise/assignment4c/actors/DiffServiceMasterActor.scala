@@ -18,12 +18,12 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
   def defaultBehavior( mapping:Map[String,ActorRef] ) :Receive = {
 
     case p@PushLeft( ident, data ) =>
-      val actor = mapping.getOrElse( ident , { spawnActor(ident) } )
-      actor forward p
+
+      getActor( ident, mapping ) forward p
 
     case p@PushRight( ident, data ) =>
-      val actor = mapping.getOrElse( ident , { spawnActor(ident) } )
-      actor forward p
+
+      getActor( ident, mapping ) forward p
 
     case c@CompareRequest( ident:String ) =>
       if( mapping.contains( ident ) ){
@@ -35,6 +35,18 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
       }
 
   }
+
+  def getActor(ident:String, mapping:Map[String,ActorRef]) = {
+    val actor = mapping.getOrElse( ident , { spawnActor(ident) } )
+
+    if( !mapping.contains(ident)){
+      context.become( defaultBehavior( mapping + ( ident -> actor ) ) , discardOld = true )
+    }
+
+    actor
+  }
+
+
 
   def spawnActor( ident:String ) =
     context.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize ) )

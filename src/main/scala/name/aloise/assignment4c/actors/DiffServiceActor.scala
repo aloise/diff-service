@@ -16,7 +16,7 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
 
   import DiffServiceActor._
 
-  type ComputedResult = (DataComparisonResult.Value, Seq[DataDifferentPart])
+  type ComputedResult = (DataComparisonResult.Value, List[DataDifferentPart])
   type ComputedResultOpt = Option[ComputedResult]
 
   /**
@@ -24,7 +24,7 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
     * @return
     */
   def receive =
-    defaultBehavior( DataBlockStorageBuilder.empty, DataBlockStorageBuilder.empty, Some( DataComparisonResult.Equal, Seq() ) )
+    defaultBehavior( DataBlockStorageBuilder.empty, DataBlockStorageBuilder.empty, Some( DataComparisonResult.Equal, List() ) )
 
 
   def defaultBehavior( left:DataBlockStorage, right:DataBlockStorage, comparisonResult: ComputedResultOpt ):Receive = {
@@ -49,7 +49,7 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
 
         } else {
           // different size - return the appropriate code
-          ( DataComparisonResult.DifferentSize, Seq() )
+          ( DataComparisonResult.DifferentSize, List() )
         }
       }
 
@@ -72,6 +72,6 @@ object DiffServiceActor {
   case class PushLeft( ident:String, data:Array[Byte]) extends Message
   case class PushRight( ident:String, data:Array[Byte]) extends Message
   case class CompareRequest( ident:String ) extends Message
-  case class CompareResponse( ident:String, comparisonResult: DataComparisonResult.Value, difference:Seq[DataDifferentPart] = Seq() ) extends Message
+  case class CompareResponse( ident:String, comparisonResult: DataComparisonResult.Value, difference:List[DataDifferentPart] = List() ) extends Message
 
 }
