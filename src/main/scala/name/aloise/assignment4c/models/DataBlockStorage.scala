@@ -15,7 +15,7 @@ object DataComparisonResult extends Enumeration {
 }
 
 
-case class DataBlockStorage( size:Int, data:Array[Byte], blockSize:Int, fingerprints:Array[DataBlockStorageBuilder.Fingerprint] ) {
+class DataBlockStorage( val size:Int, val data:Array[Byte], val blockSize:Int, val fingerprints:Array[DataBlockStorageBuilder.Fingerprint] ) {
 
 
   protected def getDifferenceWithinBlock(that: DataBlockStorage, block: Int) = {
@@ -50,24 +50,6 @@ case class DataBlockStorage( size:Int, data:Array[Byte], blockSize:Int, fingerpr
   }
 
   /**
-    * Combine adjacent ( start, end ) indexes.
-  */
-  protected def fuseIndexes( indexes:List[(Int,Int)] ):List[(Int,Int)] = {
-    indexes match {
-      case ( start0, end0 ) :: ( start1, end1 ) :: tail =>
-        if( end0 + 1 == start1 ){
-          // fuse two records
-          fuseIndexes(  ( start0, end1 ) :: tail )
-        } else {
-          ( start0, end0 ) :: fuseIndexes( indexes.tail )
-        }
-
-      case _ =>
-        indexes
-    }
-  }
-
-  /**
     * Calculates the list of different blocks from `that` data block. It would check only bytes up to a min size of both
     * @param that Another block to check with
     * @return
@@ -84,7 +66,7 @@ case class DataBlockStorage( size:Int, data:Array[Byte], blockSize:Int, fingerpr
       } yield getDifferenceWithinBlock( that, i )
 
     // combine multiple indexes
-    fuseIndexes( blocks.toList.flatten ).map { case ( startIndex, endIndex ) =>
+    DataBlockStorageBuilder.fuseIndexes( blocks.toList.flatten ).map { case ( startIndex, endIndex ) =>
       // convert indexes into block length
       DataDifferentPart( startIndex, endIndex - startIndex + 1 )
     }
@@ -125,7 +107,7 @@ object DataBlockStorageBuilder {
   }
 
 
-  def empty = DataBlockStorage(0, Array[Byte](), 0, Array[Fingerprint]())
+  def empty = new DataBlockStorage(0, Array[Byte](), 0, Array[Fingerprint]())
 
   /**
     * Builds a data storage block. Creates a list of fingerprints for every block of blockSize bytes
@@ -146,9 +128,30 @@ object DataBlockStorageBuilder {
       fingerprintArray( i ) = getFingerprint( a, i*blockSize, rightIndex )
     }
 
-    DataBlockStorage( a.length, a, blockSize, fingerprintArray )
+    new DataBlockStorage( a.length, a, blockSize, fingerprintArray )
 
 
+  }
+
+  /**
+    * Combine adjacent ( start, end ) indexes.
+    */
+  def fuseIndexes( indexes:List[(Int,Int)] ):List[(Int,Int)] = {
+    indexes.sortBy( _._1 ) match {
+      case ( start0, end0 ) :: ( start1, end1 ) :: tail =>
+        if( end0 >= end1 ){
+          // consume smaller block
+          fuseIndexes(  ( start0, end0 ) :: tail )
+        } else if( end0 + 1 >= start1 ){
+          // fuse two records
+          fuseIndexes(  ( start0, end1 ) :: tail )
+        } else {
+          ( start0, end0 ) :: fuseIndexes( indexes.tail )
+        }
+
+      case _ =>
+        indexes
+    }
   }
 
 
