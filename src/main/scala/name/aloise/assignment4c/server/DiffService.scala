@@ -92,7 +92,7 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
           pushDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)
 
       // remove the ident
-      case Slash(Segment(ident, Slash(Segment("remove", Uri.Path.Empty)))) =>
+      case Slash(Segment(ident, Slash(Segment("remove", Uri.Path.Empty)))) if httpMethod == DELETE =>
         diffServiceMasterActor ! DiffServiceActor.Remove( ident )
 
         Future.successful( jsonSuccess( JsObject("success" -> JsTrue)))
