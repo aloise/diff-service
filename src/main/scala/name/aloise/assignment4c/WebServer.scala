@@ -18,16 +18,19 @@ import scala.io.StdIn
   */
 object WebServer {
 
+    val conf = ConfigFactory.load()
+
+    val bindAddress = conf.as[Option[String]]("app.http.address").getOrElse( "localhost" )
+    val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
+    val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
+    val maxPayloadSize = conf.as[Option[Int]]("app.data.maxPayloadSize").getOrElse(16*1024*1024)
+
+    def serverFactory() = new DiffService( bindAddress, bindPort, maxPayloadSize, dataBlockSize )
+
+
     def main(args: Array[String]) {
 
-      val conf = ConfigFactory.load()
-
-
-      val bindAddress = conf.as[Option[String]]("app.http.address").getOrElse( "localhost" )
-      val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
-      val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
-
-      val server = new DiffService(bindAddress, bindPort, dataBlockSize )
+      val server = serverFactory()
 
       server.start()
 

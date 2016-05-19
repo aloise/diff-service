@@ -69,6 +69,7 @@ object DiffServiceActor {
 
   sealed trait Message
 
+  case class Remove(ident:String)
   case class PushLeft( ident:String, data:Array[Byte]) extends Message
   case class PushRight( ident:String, data:Array[Byte]) extends Message
   case class CompareRequest( ident:String ) extends Message

@@ -1,6 +1,6 @@
 package name.aloise.assignment4c.actors
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.actor.Actor.Receive
 import name.aloise.assignment4c.models.DataComparisonResult
 
@@ -25,12 +25,19 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
 
       getActor( ident, mapping ) forward p
 
-    case c@CompareRequest( ident:String ) =>
+    case c@CompareRequest( ident  ) =>
       if( mapping.contains( ident ) ){
         mapping( ident ) forward c
       } else {
         // actor not found - return the response immediately
         sender ! CompareResponse( ident, DataComparisonResult.IdentNotFound )
+
+      }
+
+    case Remove( ident ) =>
+      mapping.get( ident ).foreach{ actor =>
+        actor ! PoisonPill
+        context.become( defaultBehavior( mapping - ident ), discardOld = true )
 
       }
 

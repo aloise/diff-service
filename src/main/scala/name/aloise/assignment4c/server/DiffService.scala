@@ -29,7 +29,7 @@ import scala.concurrent.Future
   * Date: 18.05.16
   * Time: 19:57
   */
-class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, serviceVersion:Int = 1 ) {
+class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, serviceVersion:Int = 1 ) {
 
 
   import DiffService.Params._
@@ -89,7 +89,13 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, serviceV
       // update left or right data block
       case Slash(Segment(ident, Slash(Segment(leftOrRight, Uri.Path.Empty))))
         if (leftOrRight == "left" || leftOrRight == "right") && (httpMethod == POST) =>
-          pushDataRequest(ident, leftOrRight, requestEntity)
+          pushDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)
+
+      // remove the ident
+      case Slash(Segment(ident, Slash(Segment("remove", Uri.Path.Empty)))) =>
+        diffServiceMasterActor ! DiffServiceActor.Remove( ident )
+
+        Future.successful( jsonSuccess( JsObject("success" -> JsTrue)))
 
       // query results
       case Slash(Segment(ident, Uri.Path.Empty)) if httpMethod == GET =>
@@ -117,19 +123,21 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, serviceV
     serverBindingFuture.foreach{ bindingFuture =>
       bindingFuture
         .flatMap(_.unbind()) // trigger unbinding from the port
-        .onComplete(_ => system.terminate()) // and shutdown when done
+        .onComplete(_ => {
+            system.terminate()
+            processingSystem.terminate()
+          }
+        ) // and shutdown when done
     }
 
   }
 
   def getDiffResponse( ident:String )(implicit timeout:Timeout) = {
 
-
-
     val response = ( diffServiceMasterActor ask DiffServiceActor.CompareRequest( ident ) ).mapTo[CompareResponse]
 
     response map { case DiffServiceActor.CompareResponse( _, comparisonResult, difference ) =>
-        jsonSuccess( JsObject(  "result" -> JsString( comparisonResult.toString ) , "difference" -> difference.toJson ) )
+        jsonSuccess( JsObject( "result" -> JsString( comparisonResult.toString ) , "difference" -> difference.toJson ) )
 
     } recover {
       case ex:AskTimeoutException =>
@@ -137,8 +145,6 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, serviceV
       case _ =>
         jsonError("internal_error", 500)
     }
-
-
 
   }
 
