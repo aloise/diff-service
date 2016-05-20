@@ -1,8 +1,12 @@
 package name.aloise.assignment4c.actors
 
-import akka.actor.Actor
+import akka.actor.{Actor, ActorRef, PoisonPill, Props, Stash}
+import name.aloise.assignment4c.actors.persistence.PersistenceActorProxy
+import name.aloise.assignment4c.models.{AsyncDataBlockStorage, _}
 
-import name.aloise.assignment4c.models._
+import scala.concurrent.Future
+import scala.concurrent.duration._
+import akka.pattern._
 
 /**
   * User: aloise
@@ -12,53 +16,140 @@ import name.aloise.assignment4c.models._
   * master actor is the parent actor
   *
   */
-class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
+class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String => Props ) extends Actor  with Stash  {
 
   import DiffServiceActor._
+  import DiffServiceActor.Stream._
+
+  implicit val executionContext = context.system.dispatcher
 
   type ComputedResult = (DataComparisonResult.Value, List[DataDifferentPart])
   type ComputedResultOpt = Option[ComputedResult]
 
-  /**
-    * By default data array are empty and equal
-    * @return
-    */
-  def receive =
-    defaultBehavior( DataBlockStorageBuilder.empty, DataBlockStorageBuilder.empty, Some( DataComparisonResult.Equal, List() ) )
+  // todo - move into conf
+  val dataAwaitTimeout = 5.minutes
 
 
-  def defaultBehavior( left:DataBlockStorage, right:DataBlockStorage, comparisonResult: ComputedResultOpt ):Receive = {
+  val blockActors = AllowedStreamNames.map { streamName =>
 
-    case PushLeft( ident, data ) if ident == id =>
-      context.become( defaultBehavior( DataBlockStorageBuilder.fromArray(data, blockSize), right, None ), discardOld = true)
+    val persistentActorProxy = new PersistenceActorProxy( id, streamName, blockSize, persistenceActorProps, Some(context) )
+
+    // retrieve left block data
+
+    persistentActorProxy.initialData( )( dataAwaitTimeout ).map( (_, streamName) ) pipeTo self
+
+    streamName -> persistentActorProxy
+  }.toMap
 
 
-    case PushRight( ident, data ) if ident == id =>
-      context.become( defaultBehavior( left, DataBlockStorageBuilder.fromArray(data, blockSize), None ), discardOld = true)
+  def receive = initBehavior( Map() )
+
+
+  def initBehavior( blockStorage:Map[String,AsyncDataBlockStorage] ):Receive = {
+    case ( block:AsyncDataBlockStorage, streamName:String ) =>
+
+      val updatedMap = blockStorage + ( streamName -> block )
+
+      if( updatedMap.keys == AllowedStreamNames ) {
+        // all parts were received
+        unstashAll()
+
+        context.become( defaultBehavior( updatedMap, None ) , discardOld = false)
+
+        // notify parent
+        context.parent ! InitDone( id )
+
+      } else {
+        context.become( initBehavior( updatedMap ), discardOld = false )
+      }
+
+    case m:RequestMessage =>
+      stash()
+
+  }
+
+
+  def defaultBehavior( blockStorage:Map[String,AsyncDataBlockStorage], comparisonResult: ComputedResultOpt ):Receive = {
+
+    case PushData( ident, stream, data ) if ident == id && blockActors.contains( stream ) =>
+
+      val originalSender = sender()
+
+      blockActors( stream ).setData( data )( dataAwaitTimeout ).map { data =>
+        AsyncUpdateDataResponse( originalSender, stream, data )
+      } pipeTo self
+
+      // context.become( defaultBehavior( , right, None ), discardOld = true)
 
 
     case CompareRequest( ident ) if ident == id =>
 
-      val result:ComputedResult = comparisonResult.getOrElse {
+      val originalSender = sender()
+      val currentBlockStorage = blockStorage
 
-        // size is either equal and we need to compute the difference
-        if( left.size == right.size ){
-          val diff = left getDifferenceWith right
-          val result = if( diff.isEmpty) DataComparisonResult.Equal else DataComparisonResult.NotEqual
-          ( result, diff )
+      comparisonResult.map{ case ( resultVal, resultDiff ) =>
+        Future.successful( AsyncDataCompareResult( originalSender, CompareResponse( id, resultVal, resultDiff ), currentBlockStorage )  )
+      } getOrElse {
 
-        } else {
-          // different size - return the appropriate code
-          ( DataComparisonResult.DifferentSize, List() )
+        {
+          // size is either equal and we need to compute the difference
+          if (blockStorage(Stream.Left).size == blockStorage(Stream.Right).size) {
+            val diffFuture = blockStorage(Stream.Left) getDifferenceWith blockStorage(Stream.Right)
+
+            diffFuture.map { diff =>
+              val result = if (diff.isEmpty) DataComparisonResult.Equal else DataComparisonResult.NotEqual
+              (result, diff)
+            }
+
+          } else {
+            // different size - return the appropriate code
+            Future.successful((DataComparisonResult.DifferentSize, List()))
+          }
+        } map {  case ( resultVal, resultDiff ) =>
+          AsyncDataCompareResult( originalSender, CompareResponse( id, resultVal, resultDiff ), currentBlockStorage )
         }
+
+      } pipeTo self
+
+    case Remove( ident ) if ident == id =>
+      val originalSender = sender()
+      val futureSeq =
+        blockActors.map { case (_, actorProxy) =>
+            actorProxy.
+              deleteData()( dataAwaitTimeout ) .
+              recover {
+                case ex:Throwable => false
+              }
+        }
+
+      Future.sequence( futureSeq ).map { removeSuccess =>
+        // failed - one for all
+        removeSuccess.foldLeft( true ){ case (all, result ) => all && result }
+      } recover {
+        case ex:Throwable =>
+          false
+      } map( _ => AsyncDataRemoveCompleted( originalSender ) ) pipeTo self
+
+
+
+
+    // Internal messages
+    case AsyncUpdateDataResponse( originalSender, streamName, dataBlock ) =>
+      originalSender ! PushDataResponse( id, streamName, success = true )
+
+      context.become( defaultBehavior( blockStorage + ( streamName -> dataBlock ), None ), discardOld = true )
+
+    case AsyncDataCompareResult( originalSender, result, blocksForThisResult ) =>
+
+      originalSender ! result
+
+      if( ( blocksForThisResult == blockStorage ) && comparisonResult.isEmpty ){
+        context.become( defaultBehavior( blockStorage, Some( ( result.comparisonResult, result.difference ) ) ), discardOld = true )
       }
 
-      // send the response
-      sender ! CompareResponse( id, result._1, result._2 )
-
-      // save the computed result for future use
-      context.become( defaultBehavior( left, right, Some(result) ) , discardOld = true)
-
+    case AsyncDataRemoveCompleted( originalSender ) =>
+      originalSender ! RemoveResponse( id )
+      self ! PoisonPill
 
   }
 
@@ -67,12 +158,34 @@ class DiffServiceActor( id:String, blockSize:Int ) extends Actor {
 
 object DiffServiceActor {
 
-  sealed trait Message
+  object Stream {
 
-  case class Remove(ident:String)
-  case class PushLeft( ident:String, data:Array[Byte]) extends Message
-  case class PushRight( ident:String, data:Array[Byte]) extends Message
-  case class CompareRequest( ident:String ) extends Message
-  case class CompareResponse( ident:String, comparisonResult: DataComparisonResult.Value, difference:List[DataDifferentPart] = List() ) extends Message
+    val Left = "left"
+    val Right = "right"
+
+    val AllowedStreamNames =  Set( Left, Right )
+
+  }
+
+  sealed trait Message
+  trait RequestMessage extends Message
+  trait ResponseMessage extends Message
+  sealed trait InternalMessage
+
+  case class Remove(ident:String) extends RequestMessage
+  case class RemoveResponse(ident:String) extends ResponseMessage
+
+  case class PushData( ident:String, stream:String, data:Array[Byte]) extends RequestMessage
+  case class PushDataResponse( ident:String, stream:String, success:Boolean ) extends ResponseMessage
+
+  case class CompareRequest( ident:String ) extends RequestMessage
+  case class CompareResponse( ident:String, comparisonResult: DataComparisonResult.Value, difference:List[DataDifferentPart] = List() ) extends ResponseMessage
+
+  case class InitDone(ident:String) extends ResponseMessage
+
+  // Internal messages
+  case class AsyncUpdateDataResponse( originalSender:ActorRef, stream:String, block: AsyncDataBlockStorage )
+  case class AsyncDataCompareResult( originalSender:ActorRef, result: CompareResponse, blocks:Map[String,AsyncDataBlockStorage] )
+  case class AsyncDataRemoveCompleted( originalSender:ActorRef )
 
 }

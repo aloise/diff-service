@@ -12,28 +12,31 @@ import name.aloise.assignment4c.actors.{DiffServiceActor, DiffServiceMasterActor
 import akka.pattern.{AskTimeoutException, ask}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
-
 import akka.stream.scaladsl._
 import akka.util.{ByteString, Timeout}
-import name.aloise.assignment4c.actors.DiffServiceActor.CompareResponse
+import name.aloise.assignment4c.actors.DiffServiceActor.{CompareResponse, PushDataResponse, RemoveResponse}
 import name.aloise.assignment4c.models.DataDifferentPart
-
 import java.util.Base64
 import java.nio.charset.StandardCharsets
+
+import name.aloise.assignment4c.actors.persistence.MemoryBlockActor
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
 
 /**
-  * User: aloise
-  * Date: 18.05.16
-  * Time: 19:57
-  */
-class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, serviceVersion:Int = 1 ) {
+  *
+  * @param bindAddress IP address to bind
+  * @param bindPort server port
+  * @param dataBlockSize data would be split into multiple blocks up to dataBlockSize bytes each
+  * @param maxPayloadSize max payload size of the HTTP request
+  * @param persistenceActorConf persistence actor name
+  * @param serviceVersion Service version - /v1/ ..
+*/
 
+class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, persistenceActorConf: String, serviceVersion:Int = 1) {
 
   import DiffService.Params._
-
 
   implicit val system = ActorSystem("diff-service-system")
 
@@ -44,14 +47,22 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
 
   implicit var serverBindingFuture:Option[Future[ServerBinding]] = None
 
+  val persistentActorProps : String => Props = { ident:String =>
+    persistenceActorConf match {
+      case _ => Props( classOf[MemoryBlockActor], ident, dataBlockSize )
+    }
+  }
+
+
   // data processing system
   val processingSystem = ActorSystem("diff-processing-service-system")
 
-  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize ) )
+  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ) )
 
   val serviceVersionPrefix = "v"+serviceVersion
 
   val responseTimeout = Timeout( 60.seconds )
+
 
 
 
@@ -89,13 +100,19 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
       // update left or right data block
       case Slash(Segment(ident, Slash(Segment(leftOrRight, Uri.Path.Empty))))
         if (leftOrRight == "left" || leftOrRight == "right") && (httpMethod == POST) =>
-          pushDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)
+          pushDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)(responseTimeout)
 
       // remove the ident
       case Slash(Segment(ident, Slash(Segment("remove", Uri.Path.Empty)))) if httpMethod == DELETE =>
-        diffServiceMasterActor ! DiffServiceActor.Remove( ident )
+        diffServiceMasterActor.ask(DiffServiceActor.Remove(ident))(responseTimeout).mapTo[RemoveResponse].map { _ =>
+          jsonSuccess( JsObject("success" -> JsTrue))
+        } recover {
 
-        Future.successful( jsonSuccess( JsObject("success" -> JsTrue)))
+          case ex:Throwable =>
+            jsonSuccess( JsObject("success" -> JsFalse))
+        }
+
+
 
       // query results
       case Slash(Segment(ident, Uri.Path.Empty)) if httpMethod == GET =>
@@ -157,25 +174,28 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
     * @param sizeLimit Max allowed JSON payload
     * @return
     */
-  def pushDataRequest( ident:String, leftOrRight:String, requestEntity: RequestEntity, sizeLimit:Int = 16*1024*1024 ) = {
+  def pushDataRequest( ident:String, leftOrRight:String, requestEntity: RequestEntity, sizeLimit:Int = 16*1024*1024 )(implicit responseAwaitTimeout:Timeout) = {
 
-    if (leftOrRight == "left" || leftOrRight == "right") {
+    if ( DiffServiceActor.Stream.AllowedStreamNames.contains( leftOrRight ) ) {
 
       requestEntity.dataBytes.
         fold(ByteString()) { case (total, chunk) => total ++ chunk }.
         takeWhile(_.size < sizeLimit).
-        runWith(Sink.seq).map { byteString =>
-        val resultingString = byteString.map(_.compact.utf8String).mkString
+        runWith(Sink.seq).flatMap { byteString =>
 
-        val updateDataBlock = resultingString.parseJson.convertTo[UpdateDataBlock]
+          val resultingString = byteString.map(_.compact.utf8String).mkString
 
-        val data = Base64.getDecoder.decode(updateDataBlock.data)
+          val updateDataBlock = resultingString.parseJson.convertTo[UpdateDataBlock]
 
-        val msg = if (leftOrRight == "left") DiffServiceActor.PushLeft(ident, data) else DiffServiceActor.PushRight(ident, data)
+          val data = Base64.getDecoder.decode(updateDataBlock.data)
 
-        diffServiceMasterActor ! msg
+          ( diffServiceMasterActor ask DiffServiceActor.PushData(ident, leftOrRight, data) ).mapTo[PushDataResponse].map { response =>
+            jsonSuccess(JsObject("success" -> JsBoolean( response.success ), "ident" -> JsString(ident)))
+          } recover {
+            case ex:Throwable =>
+              jsonSuccess(JsObject("success" -> JsFalse, "ident" -> JsString(ident)))
+          }
 
-        jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident)))
 
       } recover {
         // TODO - add different response codes

@@ -14,7 +14,7 @@ object AsyncDataBlockStorage {
 
   type Fingerprint = Long
 
-  def getBlockFingerprint( a:Array[Byte], from:Int, to:Int ):Fingerprint = {
+  def getBlockFingerprint( a:Array[Byte] ):Fingerprint = {
     val crc32 = new CRC32()
 
     crc32.update( a )
@@ -28,7 +28,7 @@ object AsyncDataBlockStorage {
 
 }
 
-class AsyncDataBlockStorage( val size:Int, val blocks: Int => Future[Array[Byte]], val blockSize:Int, val fingerprints:Array[AsyncDataBlockStorage.Fingerprint] ) {
+case class AsyncDataBlockStorage( size:Int, blocks: Int => Future[Array[Byte]], blockSize:Int, fingerprints:Array[AsyncDataBlockStorage.Fingerprint] ) {
 
 
   def getDifferenceWith(that:AsyncDataBlockStorage )( implicit ec:ExecutionContext ):Future[List[DataDifferentPart]] = {

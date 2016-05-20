@@ -5,10 +5,12 @@ import akka.actor.ActorSystem
 import akka.actor.Actor
 import akka.actor.Props
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
+import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataResponse, RemoveResponse}
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
 import name.aloise.assignment4c.actors._
+import name.aloise.assignment4c.actors.persistence.MemoryBlockActor
 import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
 /**
@@ -19,15 +21,17 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
   class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestSpec")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
 
-    override def afterAll {
-      TestKit.shutdownActorSystem(system)
-    }
+  import name.aloise.assignment4c.WebServer
+
+
+
+    val persistentActorProps : String => Props = { ident:String => Props( classOf[MemoryBlockActor], ident, dataBlockSize ) }
 
     val dataBlockSize = 2048
 
     "Processing Actor " should {
       val ident = "test-ident"
-      val actor = system.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize ) )
+      val actor = system.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize, persistentActorProps ) )
 
       "return a compare response from start with equal response code" in {
         actor ! DiffServiceActor.CompareRequest( ident )
@@ -35,8 +39,8 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
       }
 
       "accept the left data block silently" in {
-        actor ! DiffServiceActor.PushLeft( ident, "1234567890".getBytes )
-        expectNoMsg()
+        actor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Left, "1234567890".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from start with different size response code" in {
@@ -44,9 +48,9 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
         expectMsg( DiffServiceActor.CompareResponse( ident, DataComparisonResult.DifferentSize ) )
       }
 
-      "accept the right data block silently with equal data" in {
-        actor ! DiffServiceActor.PushRight( ident, "1234567890".getBytes )
-        expectNoMsg()
+      "accept the right data block with equal data" in {
+        actor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Right, "1234567890".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from with equal size response code again" in {
@@ -54,9 +58,9 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
         expectMsg( DiffServiceActor.CompareResponse( ident, DataComparisonResult.Equal ) )
       }
 
-      "accept the right data block silently with new not equal data" in {
-        actor ! DiffServiceActor.PushRight( ident, "123456789X".getBytes )
-        expectNoMsg()
+      "accept the right data block with new not equal data" in {
+        actor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Right, "123456789X".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from with correct difference" in {
@@ -69,7 +73,7 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
     "Master Actor" should {
 
-      val masterActor = system.actorOf(Props( classOf[DiffServiceMasterActor], dataBlockSize ))
+      val masterActor = system.actorOf(Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ))
       val ident = "test-ident-" + scala.util.Random.nextInt(10000)
 
       "not respond on invalid messages" in {
@@ -85,9 +89,9 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
         expectMsg( DiffServiceActor.CompareResponse( identNotFound, DataComparisonResult.IdentNotFound, List() ) )
       }
 
-      "accept the left data block silently" in {
-        masterActor ! DiffServiceActor.PushLeft( ident, "abcdefghij".getBytes )
-        expectNoMsg()
+      "accept the left data block" in {
+        masterActor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Left, "abcdefghij".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from start with different size response code" in {
@@ -95,9 +99,9 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
         expectMsg( DiffServiceActor.CompareResponse( ident, DataComparisonResult.DifferentSize ) )
       }
 
-      "accept the right data block silently with equal data" in {
-        masterActor ! DiffServiceActor.PushRight( ident, "abcdefghij".getBytes )
-        expectNoMsg()
+      "accept the right data block with equal data" in {
+        masterActor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Right, "abcdefghij".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from with equal size response code again" in {
@@ -105,9 +109,9 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
         expectMsg( DiffServiceActor.CompareResponse( ident, DataComparisonResult.Equal ) )
       }
 
-      "accept the right data block silently with new not equal data" in {
-        masterActor ! DiffServiceActor.PushRight( ident, "abcdefghiX".getBytes )
-        expectNoMsg()
+      "accept the right data block with new not equal data" in {
+        masterActor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Right, "abcdefghiX".getBytes )
+        expectMsgType[PushDataResponse]
       }
 
       "return a compare response from with correct difference" in {
@@ -117,6 +121,7 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
       "remove the nested actor silently" in {
         masterActor ! DiffServiceActor.Remove( ident )
+        expectMsgType[RemoveResponse]
       }
 
       "return a NotFound response since it was removed" in {
@@ -126,6 +131,12 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
       }
 
     }
+
+
+    override def afterAll {
+      TestKit.shutdownActorSystem(system)
+    }
+
   }
 
 

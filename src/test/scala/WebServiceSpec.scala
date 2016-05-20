@@ -94,10 +94,12 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
         result.body.parseJson.asJsObject.fields("error").convertTo[String] should be === "invalid_base64_data"
       }
 
+
       "not accept new data block with incorrect payload ( exceeding the max payload size )" in {
         val hugePayload = "xx"*maxPayloadSize
         an [java.io.IOException] should be thrownBy Http(getServiceUrl +"v1/diff/blahblah/left" ).postData(hugePayload).asString
       }
+
 
       "accept a valid data block - left with id `test`" in {
         // SGVsbG8gV29ybGQh -> "Hello world!"
@@ -107,10 +109,11 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
       "get a response with new `test` ident - size is different since the right part is empty" in {
         val result = Http(getServiceUrl +"v1/diff/test" ).asString
+        println( result.body.parseJson )
         result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] should be === "DifferentSize"
       }
 
-      "accept a valid data block - right with id `test` with data equal to left" in {
+      "accept a valid data block - right with id `test` with data equal with left" in {
         // SGVsbG8gV29ybGQh -> "Hello world!"
         val result = Http(getServiceUrl +"v1/diff/test/right" ).postData("""{"data":"SGVsbG8gd29ybGQh"}""").asString
         ( result.code / 100 ) should be === 2

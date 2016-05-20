@@ -8,3 +8,13 @@ Built with Scala, Akka, Akka IO, SBT
 Requirements:
 - Java 8
 - SBT 0.13.11
+
+
+Command Line Tests with cURL
+
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/right
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/right
+> curl -v http://127.0.0.1:9007/v1/diff/test
+
+
+

@@ -24,8 +24,9 @@ object WebServer {
     val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
     val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
     val maxPayloadSize = conf.as[Option[Int]]("app.data.maxPayloadSize").getOrElse(16*1024*1024)
+    val persistenceActorConf = conf.as[Option[String]]("app.persistence").getOrElse("Memory")
 
-    def serverFactory() = new DiffService( bindAddress, bindPort, maxPayloadSize, dataBlockSize )
+    def serverFactory() = new DiffService( bindAddress, bindPort, dataBlockSize, maxPayloadSize, persistenceActorConf )
 
 
     def main(args: Array[String]) {
@@ -37,7 +38,6 @@ object WebServer {
       println( s"Server online at http://$bindAddress:$bindPort/\nPress RETURN to stop..." )
 
       StdIn.readLine() // let it run until user presses return
-
 
       server.stop()
 

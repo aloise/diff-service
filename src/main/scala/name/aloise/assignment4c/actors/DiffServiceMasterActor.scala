@@ -2,6 +2,7 @@ package name.aloise.assignment4c.actors
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.actor.Actor.Receive
+import name.aloise.assignment4c.actors.persistence.PersistenceActorProxy
 import name.aloise.assignment4c.models.DataComparisonResult
 
 /**
@@ -9,7 +10,7 @@ import name.aloise.assignment4c.models.DataComparisonResult
   * Date: 18.05.16
   * Time: 20:38
   */
-class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
+class DiffServiceMasterActor( dataBlockSize:Int, persistenceActorProps: String => Props ) extends Actor {
 
   import DiffServiceActor._
 
@@ -17,13 +18,9 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
 
   def defaultBehavior( mapping:Map[String,ActorRef] ) :Receive = {
 
-    case p@PushLeft( ident, data ) =>
+    case msg@PushData( ident, _, _ ) =>
 
-      getActor( ident, mapping ) forward p
-
-    case p@PushRight( ident, data ) =>
-
-      getActor( ident, mapping ) forward p
+      getActor( ident, mapping ) forward msg
 
     case c@CompareRequest( ident  ) =>
       if( mapping.contains( ident ) ){
@@ -34,11 +31,17 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
 
       }
 
-    case Remove( ident ) =>
+    case msg@Remove( ident ) =>
       mapping.get( ident ).foreach{ actor =>
-        actor ! PoisonPill
+        // actor would kill itself on completion
+        actor forward msg
+        // actor ! PoisonPill
         context.become( defaultBehavior( mapping - ident ), discardOld = true )
 
+      }
+      if( !mapping.contains( ident ) ) {
+        // send a response immediately
+        sender ! RemoveResponse( ident )
       }
 
   }
@@ -53,9 +56,9 @@ class DiffServiceMasterActor( dataBlockSize:Int ) extends Actor {
     actor
   }
 
-
-
   def spawnActor( ident:String ) =
-    context.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize ) )
+    context.actorOf(
+      Props( classOf[DiffServiceActor], ident, dataBlockSize, persistenceActorProps )
+    )
 
 }

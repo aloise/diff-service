@@ -1,28 +1,51 @@
 package name.aloise.assignment4c.actors.persistence
 
 import akka.actor.Actor
+import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
+
 
 /**
   * User: aloise
   * Date: 19.05.16
   * Time: 20:18
   */
-abstract class MemoryBlockActor( ident:String ) extends BlockStorageActor( ident ) {
+class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor( ident, blockSize ) {
 
   import BlockStorageActor._
 
-  val blocks = collection.mutable.Map[Int,Array[Byte]]()
+  val blocks = collection.mutable.Map[Int,( Array[Byte], Fingerprint )]( )
 
+  var dataSize:Int = 0
 
   def receive = {
-    case GetBlock( ident2, blockNum) =>
-      GetBlockResponse( ident, blockNum, blocks.get( blockNum )  )
+    case GetBlock( _, blockNum) =>
 
-    case SetBlock( ident2, blockNum, block ) =>
-      blocks.update( blockNum, block )
+      val block = blocks.get( blockNum )
 
-    case Delete( ident2 ) =>
+      sender ! GetBlockResponse( ident, blockNum, block.map(_._1), block.map(_._2) )
+
+    case SetBlock( _, blockNum, block ) =>
+      blocks.update( blockNum, ( block, getFingerprint(block) ) )
+
+      // increase the data size
+      dataSize = Math.max( dataSize, blockNum*blockSize + block.length )
+
+      sender ! SetBlockResponse( ident, blockNum, true)
+
+    case Delete( _ ) =>
       blocks.clear()
+      sender ! DeleteResponse( ident, true )
+
+    case GetMetadata( _ ) =>
+      // collect fingerprints
+      val fg = Array.fill[Fingerprint]( blocks.size )( 0 )
+      for( ( blockNum, ( _, fingerprint ) ) <- blocks ){
+        if( blockNum < fg.length ){
+          fg( blockNum ) = fingerprint
+        }
+      }
+
+      sender ! GetMetadataResponse( ident, fg, dataSize )
 
   }
 
