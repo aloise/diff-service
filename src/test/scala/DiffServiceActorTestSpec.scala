@@ -19,15 +19,15 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
   * Time: 15:34
   */
 
-  class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestSpec")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
+class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestSpec")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
 
   import name.aloise.assignment4c.WebServer
 
 
+    val dataBlockSize = 2048
 
     val persistentActorProps : String => Props = { ident:String => Props( classOf[MemoryBlockActor], ident, dataBlockSize ) }
 
-    val dataBlockSize = 2048
 
     "Processing Actor " should {
       val ident = "test-ident"
@@ -75,12 +75,6 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
       val masterActor = system.actorOf(Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ))
       val ident = "test-ident-" + scala.util.Random.nextInt(10000)
-
-      "not respond on invalid messages" in {
-
-        masterActor ! ( "hello world", 15 )
-        expectNoMsg()
-      }
 
       "return a CompareResponse with NotFound status for a random ident" in {
 
@@ -137,6 +131,6 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
       TestKit.shutdownActorSystem(system)
     }
 
-  }
+}
 
 

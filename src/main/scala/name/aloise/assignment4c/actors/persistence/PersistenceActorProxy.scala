@@ -126,7 +126,7 @@ class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, pers
       Future.failed(new PersistenceActorNotCreatedException(dataIdent, stream) )
     } { actor =>
       ( actor ask BlockStorageActor.GetMetadata( persistenceIdent ) ).mapTo[BlockStorageActor.GetMetadataResponse].map {
-        case BlockStorageActor.GetMetadataResponse( _, fingerprints, dataSize ) =>
+        case BlockStorageActor.GetMetadataResponse( _, fingerprints, dataSize, _ ) =>
           ( fingerprints, dataSize )
         case _ =>
           throw new FingerprintRetrievalFailed(dataIdent, stream)

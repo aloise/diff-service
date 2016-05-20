@@ -51,47 +51,47 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
       "respond with an error on invalid request" in {
         val result = Http(getServiceUrl + "blahblah").asString
-        ( result.code / 100 ) should be !== 2
+        ( result.code / 100 ) should not be 2
 
       }
 
       "respond on get requests with unknown ident with IdentNotFound" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah" ).asString
-        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] should be === "IdentNotFound"
+        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] shouldBe "IdentNotFound"
       }
 
       "respond with an error for incorrect update params - not left or right" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/center" ).postData("nothing").asString
-        ( result.code / 100 ) should be !== 2
+        ( result.code / 100 ) should not be 2
       }
 
       "respond with an error for incorrect update request with non-POST http code" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/center" ).asString // get request
-        ( result.code / 100 ) should be !== 2
+        ( result.code / 100 ) should not be 2
       }
 
       "not accept new data block with incorrect payload ( not json )" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData("nothing").asString
-        ( result.code / 100 ) should be !== 2
-        result.body.parseJson.asJsObject.fields("error").convertTo[String] should be === "json_format_error"
+        ( result.code / 100 ) should not be 2
+        result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "json_format_error"
       }
 
       "not accept new data block with incorrect payload ( invalid json structure )" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData("""{"test":"nothing"}""").asString
-        ( result.code / 100 ) should be !== 2
-        result.body.parseJson.asJsObject.fields("error").convertTo[String] should be === "invalid_json_payload_format"
+        ( result.code / 100 ) should not be 2
+        result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "invalid_json_payload_format"
       }
 
       "not accept new data block with incorrect payload ( json data field doesn't contain a string )" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData("""{"data":1}""").asString
-        ( result.code / 100 ) should be !== 2
-        result.body.parseJson.asJsObject.fields("error").convertTo[String] should be === "invalid_json_payload_format"
+        ( result.code / 100 ) should not be 2
+        result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "invalid_json_payload_format"
       }
 
       "not accept new data block with incorrect payload ( json data field doesn't contain a Base64 encoded string )" in {
         val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData("""{"data":"not a base 64 encoded string!"}""").asString
-        ( result.code / 100 ) should be !== 2
-        result.body.parseJson.asJsObject.fields("error").convertTo[String] should be === "invalid_base64_data"
+        ( result.code / 100 ) should not be 2
+        result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "invalid_base64_data"
       }
 
 
@@ -104,31 +104,31 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
       "accept a valid data block - left with id `test`" in {
         // SGVsbG8gV29ybGQh -> "Hello world!"
         val result = Http(getServiceUrl +"v1/diff/test/left" ).postData("""{"data":"SGVsbG8gd29ybGQh"}""").asString
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
       }
 
       "get a response with new `test` ident - size is different since the right part is empty" in {
         val result = Http(getServiceUrl +"v1/diff/test" ).asString
-        println( result.body.parseJson )
-        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] should be === "DifferentSize"
+
+        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] shouldBe "DifferentSize"
       }
 
       "accept a valid data block - right with id `test` with data equal with left" in {
         // SGVsbG8gV29ybGQh -> "Hello world!"
         val result = Http(getServiceUrl +"v1/diff/test/right" ).postData("""{"data":"SGVsbG8gd29ybGQh"}""").asString
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
       }
 
       "get a response for `test` ident - content should be equal" in {
         val result = Http(getServiceUrl +"v1/diff/test" ).asString
-        ( result.code / 100 ) should be === 2
-        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] should be === "Equal"
+        ( result.code / 100 ) shouldBe 2
+        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] shouldBe "Equal"
       }
 
       "accept a valid data block - right with id `test` with different data of the same size" in {
         // SGVsbG8gd29ybFgh -> "Hello worlX!"
         val result = Http(getServiceUrl +"v1/diff/test/right" ).postData("""{"data":"SGVsbG8gd29ybFgh"}""").asString
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
       }
 
       "get a response for `test` ident - content should be different" in {
@@ -136,9 +136,9 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
         val responseObj = result.body.parseJson.convertTo[GetIdentResponse]
 
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
 
-        responseObj.result should be === "NotEqual"
+        responseObj.result shouldBe "NotEqual"
 
         // "Hello world!" against "Hello worlX!"
         responseObj.difference should contain ( GetIdentResponseDiffItem( 10, 1) )
@@ -148,7 +148,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
       "accept a valid data block - left with id `test` with should be equal with right" in {
         // SGVsbG8gd29ybFgh -> "Hello worlX!"
         val result = Http(getServiceUrl +"v1/diff/test/left" ).postData("""{"data":"SGVsbG8gd29ybFgh"}""").asString
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
       }
 
       "get a response for `test` ident - content should be test same again" in {
@@ -156,20 +156,20 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
         val responseObj = result.body.parseJson.convertTo[GetIdentResponse]
 
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
 
-        responseObj.result should be === "Equal"
+        responseObj.result shouldBe "Equal"
 
       }
 
       "remove the `test` ident" in {
         val result = Http(getServiceUrl +"v1/diff/test/remove" ).method("DELETE").asString
-        ( result.code / 100 ) should be === 2
+        ( result.code / 100 ) shouldBe 2
       }
 
       "respond on get requests with `test` ident with IdentNotFound" in {
         val result = Http(getServiceUrl +"v1/diff/test" ).asString
-        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] should be === "IdentNotFound"
+        result.body.parseJson.asJsObject.fields( "result" ).convertTo[String] shouldBe "IdentNotFound"
       }
 
     }

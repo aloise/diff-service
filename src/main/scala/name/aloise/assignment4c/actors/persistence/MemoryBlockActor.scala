@@ -9,7 +9,7 @@ import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
   * Date: 19.05.16
   * Time: 20:18
   */
-class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor( ident, blockSize ) {
+class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor( ident, blockSize, false ) {
 
   import BlockStorageActor._
 
@@ -33,6 +33,7 @@ class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor(
       sender ! SetBlockResponse( ident, blockNum, true)
 
     case Delete( _ ) =>
+      dataSize = 0
       blocks.clear()
       sender ! DeleteResponse( ident, true )
 
@@ -45,7 +46,7 @@ class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor(
         }
       }
 
-      sender ! GetMetadataResponse( ident, fg, dataSize )
+      sender ! GetMetadataResponse( ident, fg, dataSize, isPersistent )
 
   }
 
