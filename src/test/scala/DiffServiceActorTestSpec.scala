@@ -6,7 +6,7 @@ import akka.actor.Actor
 import akka.actor.Props
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataBlock, PushDataBlockResponse, PushDataResponse, RemoveResponse}
+import name.aloise.assignment4c.actors.DiffServiceActor._
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
@@ -85,19 +85,42 @@ class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestS
       val secondBlock = ( 0 until testDataBlockSize*2+1 ).map(e => ( e + firstBlock.length ).toByte ).toArray
       val thirdBlock =  ( 0 until testDataBlockSize - 1 ).map( e => ( e + firstBlock.length + secondBlock.length ).toByte ).toArray
 
-      "accept the first block" in {
-        actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, firstBlock )
-        expectMsgType[PushDataBlockResponse]
+      "accept the right part as complete block" in {
+        actor ! DiffServiceActor.PushData( ident, DiffServiceActor.Stream.Right, firstBlock ++ secondBlock ++ thirdBlock )
+        expectMsgType[PushDataResponse]
       }
 
-      "accept the second block" in {
+
+      "accept the first part of the left block" in {
+        actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, firstBlock )
+        expectMsgType[PushDataBlockResponse]
+
+      }
+
+      "accept the second part of the left block" in {
         actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, secondBlock )
         expectMsgType[PushDataBlockResponse]
       }
 
-      "accept the third block" in {
+      "return a compare response against 2 left parts" in {
+        actor ! DiffServiceActor.CompareRequest( ident )
+        val response = expectMsgType[CompareResponse]
+
+        response shouldBe CompareResponse( ident, DataComparisonResult.DifferentSize, Nil )
+      }
+
+
+      "accept the third part of the left block" in {
         actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, thirdBlock )
         expectMsgType[PushDataBlockResponse]
+      }
+
+
+      "return a compare response against all three parts" in {
+        actor ! DiffServiceActor.CompareRequest( ident )
+        val response = expectMsgType[CompareResponse]
+
+        response shouldBe CompareResponse( ident, DataComparisonResult.Equal, Nil )
       }
 
 

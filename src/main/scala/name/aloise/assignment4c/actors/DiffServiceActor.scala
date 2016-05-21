@@ -146,7 +146,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
           val newSizeOnSuccess = newDataBlockSize + blockStorageItem.size
 
           // a list of blocks to push - Start of data in new array
-          val blocksToPush: Future[Seq[(Int, Array[Byte])]] =
+          val blocksToPush: Future[Seq[(Int, ( Array[Byte], Fingerprint ) )]] =
             if (blockStorageItem.size % blockSize == 0) {
               // empty or no need to pull the last block
 
@@ -156,7 +156,8 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
                   i <- 0 until newBlocksCount
                   leftIndex = i * blockSize
                   rightIndex = Math.min((i + 1) * blockSize, newDataBlockSize)
-                } yield (existingBlocksCount + i, newDataBlock.slice(leftIndex, rightIndex))
+                  newBlock = newDataBlock.slice(leftIndex, rightIndex)
+                } yield (existingBlocksCount + i, ( newBlock, AsyncDataBlockStorage.getBlockFingerprint( newBlock ) ) )
 
               Future.successful(newBlocksToPush)
 
@@ -180,18 +181,24 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
                 val newStartIndex = initialBlockFromExistingWithNewStartIndex.fold(0)(_._1)
                 val newBlocksCount = (((newDataBlockSize - newStartIndex) - 1) / blockSize) + 1
-                val blocksToPush: Seq[(Int, Array[Byte])] =
+
+                val blocksToPush: Seq[(Int, (Array[Byte],Fingerprint))] =
                   if (newBlocksCount > 0) {
                     for {
                       i <- 0 until newBlocksCount
                       leftIndex = i * blockSize + newStartIndex
                       rightIndex = Math.min((i + 1) * blockSize + newStartIndex, newDataBlockSize)
-                    } yield (existingBlocksCount + i, newDataBlock.slice(leftIndex, rightIndex))
+                      newBlock = newDataBlock.slice(leftIndex, rightIndex)
+                    } yield (existingBlocksCount + i, ( newBlock, AsyncDataBlockStorage.getBlockFingerprint( newBlock ) ) )
                   } else {
                     Seq()
                   }
 
-                initialBlockFromExistingWithNewStartIndex.map(b => (existingBlocksCount - 1, b._2)).toSeq ++ blocksToPush
+                val firstBlockOptAsSeq = initialBlockFromExistingWithNewStartIndex.map(
+                  b => (existingBlocksCount - 1, ( b._2, AsyncDataBlockStorage.getBlockFingerprint( b._2 )) )
+                ).toSeq
+
+                firstBlockOptAsSeq ++ blocksToPush
 
               }
             }
@@ -204,7 +211,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
                 val updateRequests: Future[Boolean] =
                   Future.sequence(
                     blocks.map { case (blockNum, data) =>
-                      storageActorProxy.setBlock(blockNum, data)(dataAwaitTimeout)
+                      storageActorProxy.setBlock(blockNum, data._1)(dataAwaitTimeout)
                     }
                   ).map {
                     listOfBooleans: Seq[Boolean] =>
@@ -220,7 +227,18 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
               if( result ) {
 
                 // TODO - Complete the fingerprint update
-                val updatedFingerprints = Array[Fingerprint]()
+
+                val totalUpdatedDataBlocks = ( newSizeOnSuccess - 1 ) / blockSize + 1
+
+                val fingerPrintByIndex = blocks.map{ case ( blockNum, (_,fingerprint ) ) => blockNum -> fingerprint }.toMap
+
+                val updatedFingerprints = Array.tabulate[Fingerprint]( totalUpdatedDataBlocks ){ i =>
+                  fingerPrintByIndex.getOrElse(i,
+                    if (i < blockStorageItem.fingerprints.length)
+                      blockStorageItem.fingerprints(i)
+                    else 0
+                  )
+                }
 
                 val newDataBlock = new AsyncDataBlockStorage( newSizeOnSuccess, blockStorageItem.blocks, blockStorageItem.blockSize, updatedFingerprints )
 
