@@ -2,7 +2,7 @@ package name.aloise.assignment4c.models
 
 import java.util.zip.CRC32
 
-import scala.collection.immutable.IndexedSeq
+import scala.collection.immutable.{::, IndexedSeq}
 import scala.concurrent.{ExecutionContext, Future}
 
 /**
@@ -10,6 +10,13 @@ import scala.concurrent.{ExecutionContext, Future}
   * Date: 19.05.16
   * Time: 21:54
   */
+
+object DataComparisonResult extends Enumeration {
+  val Equal, DifferentSize, NotEqual, IdentNotFound = Value
+}
+
+case class DataDifferentPart( start:Int, length:Int )
+
 object AsyncDataBlockStorage {
 
   type Fingerprint = Long
@@ -24,6 +31,28 @@ object AsyncDataBlockStorage {
   }
 
   def empty = new AsyncDataBlockStorage(0, _ => Future.failed(new IndexOutOfBoundsException()), 0, Array[Fingerprint]())
+
+  /**
+    * Combine adjacent ( start, end ) indexes.
+    * TODO inefficient version!
+    */
+  def fuseIndexes( indexes:List[(Int,Int)] ):List[(Int,Int)] = {
+    indexes.sortBy( _._1 ) match {
+      case ( start0, end0 ) :: ( start1, end1 ) :: tail =>
+        if( end0 >= end1 ){
+          // consume smaller block
+          fuseIndexes(  ( start0, end0 ) :: tail )
+        } else if( end0 + 1 >= start1 ){
+          // fuse two records
+          fuseIndexes(  ( start0, end1 ) :: tail )
+        } else {
+          ( start0, end0 ) :: fuseIndexes( ( start1, end1 ) :: tail )
+        }
+
+      case _ =>
+        indexes
+    }
+  }
 
 
 }
@@ -43,16 +72,17 @@ case class AsyncDataBlockStorage( size:Int, blocks: Int => Future[Array[Byte]], 
       } yield ( blocks( i ) zip that.blocks( i ) ).map( data => ( i, data ) )
 
     val diffListFuture: IndexedSeq[Future[List[(Int, Int)]]] =
-      differentBlocksFuture.map { futurResult =>
-        futurResult.map { case (blockNum, (thisBlock, thatBlock)) =>
+      differentBlocksFuture.map { futureResult =>
+        futureResult.map { case (blockNum, (thisBlock, thatBlock)) =>
           getDifferenceWithinBlock(thisBlock, thatBlock, blockNum)
         }
       }
 
     Future.sequence( diffListFuture ).map{ list =>
       // combine multiple indexes
-      DataBlockStorageBuilder.fuseIndexes( list.flatten.toList ).map { case ( startIndex, endIndex ) =>
+      AsyncDataBlockStorage.fuseIndexes( list.flatten.toList ).map { case ( startIndex, endIndex ) =>
         // convert indexes into block length
+        println( ( startIndex, endIndex ), "->", ( startIndex, endIndex - startIndex + 1 ) )
         DataDifferentPart( startIndex, endIndex - startIndex + 1 )
       }
     }

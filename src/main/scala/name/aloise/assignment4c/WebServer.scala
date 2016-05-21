@@ -9,6 +9,8 @@ import com.typesafe.config.ConfigFactory
 import name.aloise.assignment4c.server.DiffService
 import net.ceedubs.ficus.Ficus._
 
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 import scala.io.StdIn
 
 /**
@@ -18,28 +20,40 @@ import scala.io.StdIn
   */
 object WebServer {
 
-    val conf = ConfigFactory.load()
+    object Config {
+      val conf = ConfigFactory.load()
 
-    val bindAddress = conf.as[Option[String]]("app.http.address").getOrElse( "localhost" )
-    val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
-    val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
-    val maxPayloadSize = conf.as[Option[Int]]("app.data.maxPayloadSize").getOrElse(16*1024*1024)
-    val persistenceActorConf = conf.atPath("app.storage")
+      val bindAddress = conf.as[Option[String]]("app.http.address").getOrElse( "localhost" )
+      val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
+      val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
+      val maxPayloadSize = conf.as[Option[Int]]("app.data.maxPayloadSize").getOrElse(16*1024*1024)
+      val storageConf = conf.getConfig("app.storage")
 
-    def serverFactory() = new DiffService( bindAddress, bindPort, dataBlockSize, maxPayloadSize, persistenceActorConf )
+    }
+
+    def serverFactory() = {
+      import Config._
+
+      new DiffService(bindAddress, bindPort, dataBlockSize, maxPayloadSize, storageConf)
+    }
 
 
     def main(args: Array[String]) {
 
       val server = serverFactory()
 
-      server.start()
+      val serverBindingFuture = server.start()
 
-      println( s"Server online at http://$bindAddress:$bindPort/\nPress RETURN to stop..." )
+      val ( storageEngine, _ ) = server.storageEngineWithClass
 
-      StdIn.readLine() // let it run until user presses return
+      import Config._
 
-      server.stop()
+      println( s"Diff Server is online at http://$bindAddress:$bindPort/" )
+      println( s"Using $storageEngine storage engine")
+
+      Await.result( serverBindingFuture, Duration.Inf )
+
+//      server.stop()
 
     }
 }

@@ -20,7 +20,7 @@ import java.util.Base64
 import java.nio.charset.StandardCharsets
 
 import com.typesafe.config.Config
-import name.aloise.assignment4c.actors.persistence.{MemoryBlockActor, MongoBlockActor}
+import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, MemoryBlockActor, MongoBlockActor}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -32,11 +32,11 @@ import net.ceedubs.ficus.Ficus._
   * @param bindPort server port
   * @param dataBlockSize data would be split into multiple blocks up to dataBlockSize bytes each
   * @param maxPayloadSize max payload size of the HTTP request
-  * @param persistenceActorConf persistence actor name
+  * @param storageConf storage conf
   * @param serviceVersion Service version - /v1/ ..
 */
 
-class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, persistenceActorConf: Config, serviceVersion:Int = 1) {
+class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, storageConf: Config, serviceVersion:Int = 1) {
 
   import DiffService.Params._
 
@@ -49,18 +49,28 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
 
   implicit var serverBindingFuture:Option[Future[ServerBinding]] = None
 
-  val persistentActorProps : String => Props = { ident:String =>
-    persistenceActorConf.as[Option[String]]("engine") match {
+  val responseTimeout = Timeout( storageConf.as[Option[FiniteDuration]]("responseTimeout").getOrElse(1.minute) )
 
-      case Some( "Mongo" ) =>
-        Props( classOf[MongoBlockActor], ident, dataBlockSize, persistenceActorConf )
 
-      // default to MemoryBlock
+  val storageEngineWithClass: (String, Class[_]) = {
+    storageConf.as[Option[String]]("engine").map(_.toLowerCase) match {
+
+      case Some("mongo") =>
+        ("Mongo", classOf[MongoBlockActor])
+
       case _ =>
-        Props( classOf[MemoryBlockActor], ident, dataBlockSize, persistenceActorConf )
+        ("Memory", classOf[MemoryBlockActor])
+
     }
   }
 
+  val persistentActorProps : String => Props = { ident =>
+
+    val ( _, clazz ) = storageEngineWithClass
+
+    Props( clazz, ident, dataBlockSize, storageConf )
+
+  }
 
   // data processing system
   val processingSystem = ActorSystem("diff-processing-service-system")
@@ -68,8 +78,6 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
   val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ) )
 
   val serviceVersionPrefix = "v"+serviceVersion
-
-  val responseTimeout = Timeout( 60.seconds )
 
 
 

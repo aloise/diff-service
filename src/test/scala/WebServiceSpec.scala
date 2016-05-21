@@ -20,7 +20,8 @@ import net.ceedubs.ficus.Ficus._
   */
 class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
-  import name.aloise.assignment4c.WebServer._
+  import name.aloise.assignment4c.WebServer.serverFactory
+  import name.aloise.assignment4c.WebServer.Config._
 
   case class GetIdentResponseDiffItem( start:Int, length:Int )
   case class GetIdentResponse( result:String, difference:Seq[GetIdentResponseDiffItem] )

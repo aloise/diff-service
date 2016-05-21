@@ -95,10 +95,10 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
 
   /**
     * Updates the data blocks. It includes the metadata collection update - both fingerprint and data size
-    * @param mt
-    * @param blockNum
-    * @param block
-    * @return
+    * @param mt Current Metadata
+    * @param blockNum Block number starting from zero
+    * @param block Data block
+    * @return case class that indicates the success of the operation
     */
   def setBlock(mt: Option[Metadata], blockNum: Int, block: Array[Byte]):Future[SetBlockResponse] = {
     getMetadataBSONId(mt, create = true) flatMap { mtId =>

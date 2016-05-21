@@ -15,7 +15,7 @@ resolvers += Resolver.jcenterRepo
 
 libraryDependencies ++= {
 
-  val akkaVersion = "2.4.5"
+  val akkaVersion = "2.4.6"
 
   Seq(
     "com.iheart" %% "ficus" % "1.2.5",
