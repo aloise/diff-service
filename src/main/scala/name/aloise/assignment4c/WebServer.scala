@@ -24,7 +24,7 @@ object WebServer {
     val bindPort = conf.as[Option[Int]]("app.http.port").getOrElse(8080)
     val dataBlockSize = conf.as[Option[Int]]("app.data.blockSize").getOrElse(4096)
     val maxPayloadSize = conf.as[Option[Int]]("app.data.maxPayloadSize").getOrElse(16*1024*1024)
-    val persistenceActorConf = conf.as[Option[String]]("app.persistence").getOrElse("Memory")
+    val persistenceActorConf = conf.atPath("app.storage")
 
     def serverFactory() = new DiffService( bindAddress, bindPort, dataBlockSize, maxPayloadSize, persistenceActorConf )
 

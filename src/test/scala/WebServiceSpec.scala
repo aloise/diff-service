@@ -97,7 +97,9 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
       "not accept new data block with incorrect payload ( exceeding the max payload size )" in {
         val hugePayload = "xx"*maxPayloadSize
-        an [java.io.IOException] should be thrownBy Http(getServiceUrl +"v1/diff/blahblah/left" ).postData(hugePayload).asString
+        val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData(hugePayload).asString
+        ( result.code / 100 ) should not be 2
+        result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "json_format_error"
       }
 
 

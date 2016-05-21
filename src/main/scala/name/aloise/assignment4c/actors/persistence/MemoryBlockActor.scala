@@ -1,6 +1,7 @@
 package name.aloise.assignment4c.actors.persistence
 
 import akka.actor.Actor
+import com.typesafe.config.Config
 import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
 
 
@@ -9,7 +10,7 @@ import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
   * Date: 19.05.16
   * Time: 20:18
   */
-class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor( ident, blockSize, false ) {
+class MemoryBlockActor( ident:String, blockSize:Int, config:Config ) extends BlockStorageActor( ident, blockSize, config, false ) {
 
   import BlockStorageActor._
 
@@ -30,12 +31,12 @@ class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor(
       // increase the data size
       dataSize = Math.max( dataSize, blockNum*blockSize + block.length )
 
-      sender ! SetBlockResponse( ident, blockNum, true)
+      sender ! SetBlockResponse( ident, blockNum, success = true)
 
     case Delete( _ ) =>
       dataSize = 0
       blocks.clear()
-      sender ! DeleteResponse( ident, true )
+      sender ! DeleteResponse( ident, success = true )
 
     case GetMetadata( _ ) =>
       // collect fingerprints
@@ -46,7 +47,7 @@ class MemoryBlockActor( ident:String, blockSize:Int ) extends BlockStorageActor(
         }
       }
 
-      sender ! GetMetadataResponse( ident, fg, dataSize, isPersistent )
+      sender ! GetMetadataResponse( ident, fg, dataSize, blockSize, isPersistent )
 
   }
 

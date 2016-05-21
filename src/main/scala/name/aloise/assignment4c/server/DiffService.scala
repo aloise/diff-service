@@ -19,10 +19,12 @@ import name.aloise.assignment4c.models.DataDifferentPart
 import java.util.Base64
 import java.nio.charset.StandardCharsets
 
-import name.aloise.assignment4c.actors.persistence.MemoryBlockActor
+import com.typesafe.config.Config
+import name.aloise.assignment4c.actors.persistence.{MemoryBlockActor, MongoBlockActor}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
+import net.ceedubs.ficus.Ficus._
 
 /**
   *
@@ -34,7 +36,7 @@ import scala.concurrent.Future
   * @param serviceVersion Service version - /v1/ ..
 */
 
-class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, persistenceActorConf: String, serviceVersion:Int = 1) {
+class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloadSize:Int, persistenceActorConf: Config, serviceVersion:Int = 1) {
 
   import DiffService.Params._
 
@@ -48,8 +50,14 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
   implicit var serverBindingFuture:Option[Future[ServerBinding]] = None
 
   val persistentActorProps : String => Props = { ident:String =>
-    persistenceActorConf match {
-      case _ => Props( classOf[MemoryBlockActor], ident, dataBlockSize )
+    persistenceActorConf.as[Option[String]]("engine") match {
+
+      case Some( "Mongo" ) =>
+        Props( classOf[MongoBlockActor], ident, dataBlockSize, persistenceActorConf )
+
+      // default to MemoryBlock
+      case _ =>
+        Props( classOf[MemoryBlockActor], ident, dataBlockSize, persistenceActorConf )
     }
   }
 
@@ -178,7 +186,9 @@ class DiffService( bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPaylo
 
     if ( DiffServiceActor.Stream.AllowedStreamNames.contains( leftOrRight ) ) {
 
-      requestEntity.dataBytes.
+      requestEntity.
+        withoutSizeLimit().
+        dataBytes.
         fold(ByteString()) { case (total, chunk) => total ++ chunk }.
         takeWhile(_.size < sizeLimit).
         runWith(Sink.seq).flatMap { byteString =>

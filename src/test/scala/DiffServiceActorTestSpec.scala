@@ -5,6 +5,7 @@ import akka.actor.ActorSystem
 import akka.actor.Actor
 import akka.actor.Props
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
+import com.typesafe.config.ConfigFactory
 import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataResponse, RemoveResponse}
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
@@ -26,7 +27,7 @@ class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestS
 
     val dataBlockSize = 2048
 
-    val persistentActorProps : String => Props = { ident:String => Props( classOf[MemoryBlockActor], ident, dataBlockSize ) }
+    val persistentActorProps : String => Props = { ident:String => Props( classOf[MemoryBlockActor], ident, dataBlockSize, ConfigFactory.empty ) }
 
 
     "Processing Actor " should {

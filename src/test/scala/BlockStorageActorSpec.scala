@@ -1,5 +1,6 @@
 import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import com.typesafe.config.Config
 import name.aloise.assignment4c.actors.persistence.BlockStorageActor._
 import name.aloise.assignment4c.actors.persistence._
 import name.aloise.assignment4c.models.AsyncDataBlockStorage
@@ -12,7 +13,7 @@ import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
   * Date: 20.05.16
   * Time: 18:57
   */
-abstract class BlockStorageActorSpec( actorName:String, isPersistent: Boolean) extends TestKit(ActorSystem( actorName + "PersistenceBlockActorSpecSystem")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
+abstract class BlockStorageActorSpec( val actorName:String, val config:Config, val isPersistent: Boolean) extends TestKit(ActorSystem( actorName + "PersistenceBlockActorSpecSystem")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
 
   def getActorProps( ident:String, blockSize:Int ):Props
 

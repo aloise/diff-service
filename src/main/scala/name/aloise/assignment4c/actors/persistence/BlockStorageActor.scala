@@ -2,6 +2,7 @@ package name.aloise.assignment4c.actors.persistence
 
 import akka.actor.Actor
 import akka.stream.actor.ActorPublisherMessage.Request
+import com.typesafe.config.Config
 import name.aloise.assignment4c.models.AsyncDataBlockStorage
 import name.aloise.assignment4c.models.AsyncDataBlockStorage._
 
@@ -11,7 +12,7 @@ import name.aloise.assignment4c.models.AsyncDataBlockStorage._
   * Time: 21:37
   */
 
-abstract class BlockStorageActor( ident:String, blockSize:Int, val isPersistent:Boolean ) extends Actor {
+abstract class BlockStorageActor( ident:String, blockSize:Int, config:Config, val isPersistent:Boolean ) extends Actor {
 
 
   def getFingerprint( block:Array[Byte]):Fingerprint = AsyncDataBlockStorage.getBlockFingerprint(block)
@@ -25,7 +26,7 @@ object BlockStorageActor {
   sealed trait Response extends ExternalMessage
 
   case class GetMetadata(ident:String ) extends Request
-  case class GetMetadataResponse(ident:String, fingerprints:Array[Fingerprint], dataSize:Int, isPersistent:Boolean ) extends Response
+  case class GetMetadataResponse(ident:String, fingerprints:Array[Fingerprint], dataSize:Int, blockSize:Int, isPersistent:Boolean ) extends Response
 
 
   case class GetBlock( ident:String, blockNum:Int ) extends Request
