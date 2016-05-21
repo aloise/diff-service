@@ -82,7 +82,6 @@ case class AsyncDataBlockStorage( size:Int, blocks: Int => Future[Array[Byte]], 
       // combine multiple indexes
       AsyncDataBlockStorage.fuseIndexes( list.flatten.toList ).map { case ( startIndex, endIndex ) =>
         // convert indexes into block length
-        println( ( startIndex, endIndex ), "->", ( startIndex, endIndex - startIndex + 1 ) )
         DataDifferentPart( startIndex, endIndex - startIndex + 1 )
       }
     }

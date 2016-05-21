@@ -1,20 +1,117 @@
-Sample Json API - Data Diff Service
+Data Diff Service
 =================================
 
 Author: Igor Mordashev <erwaht@gmail.com>
 
-Built with Scala, Akka, Akka IO, SBT
+Built with Scala, Akka, Akka IO, Akka HTTP, SBT
 
-Requirements:
-- Java 8
-- SBT 0.13.11
+*Requirements:
+    - Java 8
+    - SBT 0.13.11
+    - Optional : Mongo 2.6+ as a persistent storage. It will use RAM otherwise.
+
+*Build
+
+> sbt assembly
+
+A complete JAR package would be created in the following folder:
+
+/path/to/the/project/target/scala-2.11/Assignment4C-assembly-1.0.jar
+
+*Run
+
+> cd /path/to/the/jar
+> java -Xmx=1G -jar Assignment4C-assembly-1.0.jar
+
+*Configure
+
+Configuration file is stored under the following path:
+
+/path/to/the/project/src/main/resources/application.conf
+
+It contains several document configuration options documented.
 
 
-Command Line Tests with cURL
+*REST JSON API Specification
 
-> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/right
-> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/right
+Methods
+
+1. Upload the data block for [ID] - either left or right block
+
+    POST    /v1/diff/[ID]/{left|right}
+
+    Request body should be in JSON format:
+
+    { data: "BASE64_ENCODED_STRING" }
+
+    Where BASE64_ENCODED_STRING should contain a valid Bas64 string with binary data.
+
+    Payload should not exceed the 16Mb limit ( by default, configured in the application.conf file )
+
+    Response:
+        - on success:
+            { "success" -> true, "ident" -> [ID] }
+        - on failure
+            { "error" -> "error_code" }
+
+
+2. Get the difference
+
+    GET     /v1/diff/[ID]
+
+    Response:
+        - on success:
+            { "result" -> [RESULT_CODE_STRING], "differences" -> [ { start: [START_INDEX_INT], length : [BLOCK_LENGTH_INT] }, ... ] }
+            Where [RESULT_CODE_STRING] is one of:
+                - Equal             data blocks were equal, "differences" array is empty
+                - DifferentSize     data blocks were not equal , "differences" array is empty
+                - NotEqual          data blocks were of the same size, , "differences" array contains the list of
+                - IdentNotFound     [ID] was not found in the DB
+
+            Sample response:
+                {"result":"NotEqual","difference":[{"start":10,"length":1}]}
+
+        - on failure:
+            { "error" -> "error_code" }
+
+3. Remove the data
+
+    DELETE  /v1/diff/[ID]/remove
+        - on success:
+            {"success":true}
+        - on error:
+            {"success":false}
+
+
+
+*Command Line Tests with cURL
+
 > curl -v http://127.0.0.1:9007/v1/diff/test
+>> {"result":"IdentNotFound","difference":[]}
 
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/right
+>> {"success":true,"ident":"test"}
 
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQh\"}" http://127.0.0.1:9007/v1/diff/test/left
+>> {"success":true,"ident":"test"}
 
+> curl -v http://127.0.0.1:9007/v1/diff/test
+>> {"result":"Equal","difference":[]}
+
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGc=\"}" http://127.0.0.1:9007/v1/diff/test/left
+>> {"success":true,"ident":"test"}
+
+> curl -v http://127.0.0.1:9007/v1/diff/test
+>> {"result":"DifferentSize","difference":[]}
+
+> curl -v --data "{\"data\":\"aGVsbG8gd29ybGQ=\"}" http://127.0.0.1:9007/v1/diff/test/right
+>> {"success":true,"ident":"test"}
+
+> curl -v http://127.0.0.1:9007/v1/diff/test
+>> {"result":"NotEqual","difference":[{"start":10,"length":1}]}
+
+> curl -v http://127.0.0.1:9007/v1/diff/test/remove -X DELETE
+>> {"success":true}
+
+> curl -v http://127.0.0.1:9007/v1/diff/test
+>> {"result":"IdentNotFound","difference":[]}

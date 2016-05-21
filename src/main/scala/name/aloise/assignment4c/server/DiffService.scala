@@ -79,9 +79,6 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
 
   val serviceVersionPrefix = "v"+serviceVersion
 
-
-
-
   // Main request handler - mostly a router
   protected val requestHandler: HttpRequest => Future[HttpResponse] = {
 
@@ -127,8 +124,6 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
           case ex:Throwable =>
             jsonSuccess( JsObject("success" -> JsFalse))
         }
-
-
 
       // query results
       case Slash(Segment(ident, Uri.Path.Empty)) if httpMethod == GET =>
