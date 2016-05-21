@@ -54,8 +54,26 @@ Methods
         - on failure
             { "error" -> "error_code" }
 
+    Example URL : http://127.0.0.1:9007/v1/diff/test/right
 
-2. Get the difference
+
+2. Upload the data block for [ID] - either left or right block in binary format - Payload size in unlimited, no hard limit ( defined by storage layer capabilities ).
+   Data is processed by chunks.
+
+   POST    /v1/diff/[ID]/{left|right}.bin
+
+   Post payload should contain the binary data.
+
+    Response:
+        - on success:
+            { "success" -> true, "ident" -> [ID], "stream" -> true }
+        - on failure
+            { "error" -> "error_code" }
+
+    Example URL : http://127.0.0.1:9007/v1/diff/test/right.bin
+
+
+3. Get the difference
 
     GET     /v1/diff/[ID]
 
@@ -74,13 +92,17 @@ Methods
         - on failure:
             { "error" -> "error_code" }
 
-3. Remove the data
+    Example URL : http://127.0.0.1:9007/v1/diff/test
+
+4. Remove the data completely ( both left and right )
 
     DELETE  /v1/diff/[ID]/remove
         - on success:
             {"success":true}
         - on error:
             {"success":false}
+
+    Example URL : http://127.0.0.1:9007/v1/diff/remove
 
 
 
@@ -109,6 +131,9 @@ Methods
 
 > curl -v http://127.0.0.1:9007/v1/diff/test
 >> {"result":"NotEqual","difference":[{"start":10,"length":1}]}
+
+> curl -v --data "Hello" http://127.0.0.1:9007/v1/diff/test/right.bin
+>> {"success":true,"ident":"test","stream":true}
 
 > curl -v http://127.0.0.1:9007/v1/diff/test/remove -X DELETE
 >> {"success":true}
