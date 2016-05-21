@@ -33,9 +33,7 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
   } yield db
 
   // By default, you get a Future[BSONCollection].
-
   val metadataCollection:Future[BSONCollection] = database.map(_("metadata"))
-
   val blockCollection:Future[BSONCollection] = database.map(_("blocks"))
 
 
@@ -68,8 +66,29 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
       setBlock( mt, blockNum, block ) pipeTo sender
 
     case Delete( _ ) =>
+      deleteData( mt ) pipeTo sender
 
 
+  }
+
+  def deleteData( mt: Option[Metadata] ):Future[DeleteResponse] = {
+    getMetadata() flatMap { mtId =>
+
+      for {
+        blockColl <- blockCollection
+        metaColl <- metadataCollection
+        blockDeleteResult <- blockColl.remove( BSONDocument( "metadataId" -> mtId ), firstMatchOnly = false )
+        metaDeleteResult <- metaColl.remove( BSONDocument( "_id" -> mtId ) )
+
+      } yield DeleteResponse( ident, blockDeleteResult.ok && metaDeleteResult.ok )
+
+
+    } recover {
+      case ex:MetadataNotFoundException =>
+        DeleteResponse( ident, success = true )
+      case _:Throwable =>
+        DeleteResponse( ident, success = false )
+    }
   }
 
 
@@ -89,14 +108,14 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
       }
 
     } recover {
-      case ex: Throwable =>
+      case _: Throwable =>
         // return an empty block
         SetBlockResponse(ident, blockNum, success = false)
     }
   }
 
   def getBlock(mt: Option[Metadata], blockNum: Int): Future[GetBlockResponse] = {
-    getMetadataBSONId(mt, false) flatMap { mtId =>
+    getMetadataBSONId(mt, create = false) flatMap { mtId =>
       blockCollection.flatMap { collection =>
         collection.find(BSONDocument("metadataId" -> mtId, "blockNum" -> blockNum)).one[BSONDocument].map { result =>
 
@@ -112,7 +131,7 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
       }
 
     } recover {
-      case ex: Throwable =>
+      case _: Throwable =>
         // return an empty block
         GetBlockResponse(ident, blockNum, None, None)
     }
