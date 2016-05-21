@@ -93,10 +93,10 @@ case class AsyncDataBlockStorage( size:Int, blocks: Int => Future[Array[Byte]], 
     *
     * @param thisBlock First block
     * @param thatBlock Second block
-    * @param block
-    * @return
+    * @param block data
+    * @return List of ( start, end ) pairs of different blocks - inclusive indexes
     */
-  protected def getDifferenceWithinBlock( thisBlock:Array[Byte], thatBlock: Array[Byte], block: Int) = {
+  protected def getDifferenceWithinBlock( thisBlock:Array[Byte], thatBlock: Array[Byte], block: Int): List[(Int, Int)] = {
     val rightBoundary = Math.min( thisBlock.length, thatBlock.length )
 
     // contains indexes of current block start and end. Inclusive indexes

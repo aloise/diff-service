@@ -7,6 +7,8 @@ import name.aloise.assignment4c.models.{AsyncDataBlockStorage, _}
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import akka.pattern._
+import name.aloise.assignment4c.actors.persistence.BlockStorageActor.{SetBlock, SetBlockResponse}
+import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
 
 /**
   * User: aloise
@@ -20,6 +22,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
   import DiffServiceActor._
   import DiffServiceActor.Stream._
+  import PersistenceActorProxy._
 
   implicit val executionContext = context.system.dispatcher
 
@@ -75,8 +78,8 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
       val originalSender = sender()
 
-      blockActors( stream ).setData( data )( dataAwaitTimeout ).map { data =>
-        AsyncUpdateDataResponse( originalSender, stream, data )
+      blockActors( stream ).setData( data )( dataAwaitTimeout ).map { updatedData =>
+        AsyncUpdateDataResponse( originalSender, stream, updatedData )
       } pipeTo self
 
       // context.become( defaultBehavior( , right, None ), discardOld = true)
@@ -116,7 +119,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
       val futureSeq =
         blockActors.map { case (_, actorProxy) =>
             actorProxy.
-              deleteData()( dataAwaitTimeout ) .
+              deleteData()( dataAwaitTimeout ).
               recover {
                 case ex:Throwable => false
               }
@@ -131,6 +134,113 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
       } map( _ => AsyncDataRemoveCompleted( originalSender ) ) pipeTo self
 
 
+    case PushDataBlock( ident, stream, newDataBlock ) if ident == id =>
+
+      if( newDataBlock.length > 0 ){
+
+        blockStorage.get( stream ).foreach { blockStorageItem =>
+
+          val existingBlocksCount = if (blockStorageItem.size > 0) ((blockStorageItem.size - 1) / blockSize) + 1 else 0
+          val newDataBlockSize = newDataBlock.length
+
+          val newSizeOnSuccess = newDataBlockSize + blockStorageItem.size
+
+          // a list of blocks to push - Start of data in new array
+          val blocksToPush: Future[Seq[(Int, Array[Byte])]] =
+            if (blockStorageItem.size % blockSize == 0) {
+              // empty or no need to pull the last block
+
+              val newBlocksCount = ((newDataBlockSize - 1) / blockSize) + 1
+              val newBlocksToPush =
+                for {
+                  i <- 0 until newBlocksCount
+                  leftIndex = i * blockSize
+                  rightIndex = Math.min((i + 1) * blockSize, newDataBlockSize)
+                } yield (existingBlocksCount + i, newDataBlock.slice(leftIndex, rightIndex))
+
+              Future.successful(newBlocksToPush)
+
+            } else {
+
+              blockStorageItem.blocks(existingBlocksCount - 1).map { lastExistingBlock =>
+                val lastExistingBlockSize = lastExistingBlock.length
+
+                val initialBlockFromExistingWithNewStartIndex: Option[(Int, Array[Byte])] =
+                  if (lastExistingBlockSize >= blockSize) {
+                    None
+                  } else {
+                    val newBlock = Array.fill[Byte](Math.min(blockSize, newDataBlockSize))(0)
+                    // copy from existing block
+                    for (i <- 0 until lastExistingBlockSize) newBlock(i) = lastExistingBlock(i)
+                    // fill the rest with new data
+                    for (i <- lastExistingBlockSize until Math.min(blockSize, newDataBlockSize)) newBlock(i) = newDataBlock(i - lastExistingBlockSize)
+
+                    Some(blockSize - lastExistingBlockSize, newBlock)
+                  }
+
+                val newStartIndex = initialBlockFromExistingWithNewStartIndex.fold(0)(_._1)
+                val newBlocksCount = (((newDataBlockSize - newStartIndex) - 1) / blockSize) + 1
+                val blocksToPush: Seq[(Int, Array[Byte])] =
+                  if (newBlocksCount > 0) {
+                    for {
+                      i <- 0 until newBlocksCount
+                      leftIndex = i * blockSize + newStartIndex
+                      rightIndex = Math.min((i + 1) * blockSize + newStartIndex, newDataBlockSize)
+                    } yield (existingBlocksCount + i, newDataBlock.slice(leftIndex, rightIndex))
+                  } else {
+                    Seq()
+                  }
+
+                initialBlockFromExistingWithNewStartIndex.map(b => (existingBlocksCount - 1, b._2)).toSeq ++ blocksToPush
+
+              }
+            }
+
+          blocksToPush.flatMap { blocks =>
+
+            val successResultF: Future[Boolean] =
+              blockActors.get(stream).map { storageActorProxy =>
+
+                val updateRequests: Future[Boolean] =
+                  Future.sequence(
+                    blocks.map { case (blockNum, data) =>
+                      storageActorProxy.setBlock(blockNum, data)(dataAwaitTimeout)
+                    }
+                  ).map {
+                    listOfBooleans: Seq[Boolean] =>
+                      listOfBooleans.fold(true) { case (result, current) => result && current }
+                  }
+
+                updateRequests
+
+              } getOrElse Future.successful(false)
+
+            successResultF.map { result =>
+
+              if( result ) {
+
+                // TODO - Complete the fingerprint update
+                val updatedFingerprints = Array[Fingerprint]()
+
+                val newDataBlock = new AsyncDataBlockStorage( newSizeOnSuccess, blockStorageItem.blocks, blockStorageItem.blockSize, updatedFingerprints )
+
+                context.become( defaultBehavior( blockStorage + ( stream -> newDataBlock ), None ), discardOld = true )
+              }
+
+              PushDataBlockResponse(ident, stream, success = result)
+            }
+
+          } recover {
+            case _: Throwable =>
+              PushDataBlockResponse(ident, stream, success = false)
+          } pipeTo sender()
+
+        }
+
+      } else {
+        // zero data size - ok!
+        sender ! PushDataBlockResponse(ident, stream, success = true)
+      }
 
 
     // Internal messages
@@ -153,7 +263,6 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
   }
 
-
 }
 
 object DiffServiceActor {
@@ -175,8 +284,13 @@ object DiffServiceActor {
   case class Remove(ident:String) extends RequestMessage
   case class RemoveResponse(ident:String) extends ResponseMessage
 
+  // Update the whole data block. Previous data is discarded
   case class PushData( ident:String, stream:String, data:Array[Byte]) extends RequestMessage
   case class PushDataResponse( ident:String, stream:String, success:Boolean ) extends ResponseMessage
+
+  // Streaming addition - add multiple additional blocks to the end
+  case class PushDataBlock( ident:String, stream:String, dataBlock:Array[Byte] ) extends RequestMessage
+  case class PushDataBlockResponse( ident:String, stream:String, success:Boolean ) extends ResponseMessage
 
   case class CompareRequest( ident:String ) extends RequestMessage
   case class CompareResponse( ident:String, comparisonResult: DataComparisonResult.Value, difference:List[DataDifferentPart] = List() ) extends ResponseMessage

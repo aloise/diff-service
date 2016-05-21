@@ -15,9 +15,15 @@ import scala.collection.immutable.IndexedSeq
   * Date: 19.05.16
   * Time: 23:05
   */
+
+
+
 class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, persistenceActorProps: String => Props, spawnActorWithParent:Option[ActorRefFactory] = None )(implicit ec:ExecutionContext) {
 
-  val persistenceIdent = dataIdent+"-"+stream
+  import PersistenceActorProxy._
+
+  val persistenceIdent = getStorageIdent( dataIdent, stream )
+
   var persistenceActor : Option[ActorRef] = spawnActorWithParent.map { parentActor =>
     spawnActor( parentActor )
   }
@@ -41,17 +47,16 @@ class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, pers
     }
   }
 
-  def setBlock( blockNum:Int, data:Array[Byte] )( implicit t:Timeout ):Future[Unit] = {
-    persistenceActor.fold[Future[Unit]] {
+  def setBlock( blockNum:Int, data:Array[Byte] )( implicit t:Timeout ):Future[Boolean] = {
+    persistenceActor.fold[Future[Boolean]] {
       Future.failed(new PersistenceActorNotCreatedException(dataIdent, stream) )
     } { actor =>
       ( actor ask BlockStorageActor.SetBlock( persistenceIdent, blockNum, data ) ).mapTo[SetBlockResponse].map {
         case SetBlockResponse(_,_, true ) =>
-          Future.successful()
+          true
         case _ =>
           throw new BlockUpdateFailedException(dataIdent, stream)
       }
-
     }
   }
 
@@ -62,7 +67,7 @@ class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, pers
     } { actor =>
 
       val dataSize = wholeDataArray.length
-      val blockCount = (dataSize - 1) / blockSize // amount of blocks minus 1
+      val blockCount = if( dataSize > 0 ) (dataSize - 1) / blockSize else 0 // amount of blocks minus 1
 
       // delete previous blocks first
 
@@ -136,9 +141,17 @@ class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, pers
 
 }
 
-abstract class BlockPersistenceException(ident:String, stream:String) extends Exception
-class PersistenceActorNotCreatedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
-class BlockNotFoundException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
-class BlockUpdateFailedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
-class DeleteFailedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
-class FingerprintRetrievalFailed(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+object PersistenceActorProxy {
+
+  def getStorageIdent(dataIdent:String, stream:String ):String = dataIdent+"-"+stream
+
+  abstract class BlockPersistenceException(ident:String, stream:String) extends Exception
+  class PersistenceActorNotCreatedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+  class BlockNotFoundException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+  class BlockUpdateFailedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+  class DeleteFailedException(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+  class FingerprintRetrievalFailed(ident:String, stream:String)  extends BlockPersistenceException(ident, stream)
+
+}
+
+

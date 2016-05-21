@@ -6,7 +6,7 @@ import akka.actor.Actor
 import akka.actor.Props
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataResponse, RemoveResponse}
+import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataBlock, PushDataBlockResponse, PushDataResponse, RemoveResponse}
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
@@ -25,14 +25,17 @@ class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestS
   import name.aloise.assignment4c.WebServer
 
 
-    val dataBlockSize = 2048
 
-    val persistentActorProps : String => Props = { ident:String => Props( classOf[MemoryBlockActor], ident, dataBlockSize, ConfigFactory.empty ) }
+
+    def persistentActorProps( blockSize:Int )( ident:String ) =
+      Props( classOf[MemoryBlockActor], ident, blockSize, ConfigFactory.empty )
+
 
 
     "Processing Actor " should {
+      val dataBlockSize = 2048
       val ident = "test-ident"
-      val actor = system.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize, persistentActorProps ) )
+      val actor = system.actorOf( Props( classOf[DiffServiceActor], ident, dataBlockSize, persistentActorProps( dataBlockSize ) _ ) )
 
       "return a compare response from start with equal response code" in {
         actor ! DiffServiceActor.CompareRequest( ident )
@@ -69,12 +72,43 @@ class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestS
         expectMsg( DiffServiceActor.CompareResponse( ident, DataComparisonResult.NotEqual, List( DataDifferentPart( 9, 1 )) ) )
       }
 
+    }
+
+
+    "Processing Actor with Streaming" should {
+
+      val testDataBlockSize = 5
+
+      val ident = "test-ident-streaming-"+System.currentTimeMillis()
+      val actor = system.actorOf( Props( classOf[DiffServiceActor], ident, testDataBlockSize, persistentActorProps( testDataBlockSize ) _ ) )
+      val firstBlock = (0 until testDataBlockSize*3+2).map(_.toByte).toArray
+      val secondBlock = ( 0 until testDataBlockSize*2+1 ).map(e => ( e + firstBlock.length ).toByte ).toArray
+      val thirdBlock =  ( 0 until testDataBlockSize - 1 ).map( e => ( e + firstBlock.length + secondBlock.length ).toByte ).toArray
+
+      "accept the first block" in {
+        actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, firstBlock )
+        expectMsgType[PushDataBlockResponse]
+      }
+
+      "accept the second block" in {
+        actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, secondBlock )
+        expectMsgType[PushDataBlockResponse]
+      }
+
+      "accept the third block" in {
+        actor ! PushDataBlock( ident, DiffServiceActor.Stream.Left, thirdBlock )
+        expectMsgType[PushDataBlockResponse]
+      }
+
+
 
     }
 
     "Master Actor" should {
 
-      val masterActor = system.actorOf(Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ))
+      val dataBlockSize = 2048
+
+      val masterActor = system.actorOf(Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps( dataBlockSize ) _ ) )
       val ident = "test-ident-" + scala.util.Random.nextInt(10000)
 
       "return a CompareResponse with NotFound status for a random ident" in {
