@@ -107,6 +107,7 @@ abstract class BlockStorageActorSpec( val actorName:String, val config:Config, v
       actor ! GetBlock( randomIdent, 0 )
       val response = expectMsgType[GetBlockResponse]
 
+      response.ident shouldBe randomIdent
       response.block shouldBe defined
       response.block.get shouldBe altDataBlock0
       response.fingerprint should contain ( altDataBlock0Fingerprint )
@@ -120,7 +121,9 @@ abstract class BlockStorageActorSpec( val actorName:String, val config:Config, v
     "report a zero size once removed" in {
       actor ! GetMetadata( randomIdent )
       val response = expectMsgType[GetMetadataResponse]
+      response.ident shouldBe randomIdent
       response.dataSize shouldBe 0
+      response.fingerprints.length shouldBe 0
     }
 
     if( isPersistent ) {
@@ -154,7 +157,8 @@ abstract class BlockStorageActorSpec( val actorName:String, val config:Config, v
         val response = expectMsgType[GetBlockResponse]
 
         response.fingerprint should contain ( persistArrayFingerprint )
-        response.block shouldBe persistArray
+
+        response.block should contain ( persistArray )
       }
 
 

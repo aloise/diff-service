@@ -5,10 +5,11 @@ import name.aloise.assignment4c.actors.persistence.BlockStorageActor._
 import reactivemongo.api.{MongoConnection, MongoDriver}
 import net.ceedubs.ficus.Ficus._
 import reactivemongo.api.collections.bson.BSONCollection
-import reactivemongo.bson._
+import reactivemongo.bson.{BSONDocument, _}
 import akka.pattern._
 import name.aloise.assignment4c.models.AsyncDataBlockStorage
 import name.aloise.assignment4c.models.AsyncDataBlockStorage._
+import reactivemongo.bson
 
 import scala.concurrent.Future
 
@@ -72,13 +73,13 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
   }
 
   def deleteData( mt: Option[Metadata] ):Future[DeleteResponse] = {
-    getMetadata() flatMap { mtId =>
+    getMetadata() flatMap { metadata: Metadata =>
 
       for {
         blockColl <- blockCollection
         metaColl <- metadataCollection
-        blockDeleteResult <- blockColl.remove( BSONDocument( "metadataId" -> mtId ), firstMatchOnly = false )
-        metaDeleteResult <- metaColl.remove( BSONDocument( "_id" -> mtId ) )
+        blockDeleteResult <- blockColl.remove( BSONDocument( "metadataId" -> metadata._id ), firstMatchOnly = false )
+        metaDeleteResult <- metaColl.remove( BSONDocument( "_id" -> metadata._id ) )
 
       } yield DeleteResponse( ident, blockDeleteResult.ok && metaDeleteResult.ok )
 
@@ -92,20 +93,31 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
   }
 
 
+  /**
+    * Updates the data blocks. It includes the metadata collection update - both fingerprint and data size
+    * @param mt
+    * @param blockNum
+    * @param block
+    * @return
+    */
   def setBlock(mt: Option[Metadata], blockNum: Int, block: Array[Byte]):Future[SetBlockResponse] = {
     getMetadataBSONId(mt, create = true) flatMap { mtId =>
-      blockCollection.flatMap { collection =>
 
-        val dbBlock = Block( BSONObjectID.generate(), mtId, blockNum, block, AsyncDataBlockStorage.getBlockFingerprint( block ) )
+      for {
+        blockColl <- blockCollection
+        metaColl <- metadataCollection
+        currentMetadata <- metaColl.find( BSONDocument( "_id" -> mtId) ).one[BSONDocument].map( value => value.map( metadataHandler.read ) )
+        fingerprint = AsyncDataBlockStorage.getBlockFingerprint( block )
 
-        collection.insert( blockHandler.write( dbBlock ) ).map { writeResult =>
-          if( writeResult.ok) {
-            SetBlockResponse( ident, blockNum, success = true )
-          } else {
-            SetBlockResponse( ident, blockNum, success = false )
-          }
-        }
-      }
+        blockSelector = BSONDocument( "metadataId" -> mtId, "blockNum" -> blockNum )
+        blockSetData = BSONDocument("$set" -> BSONDocument( "block" -> block, "fingerprint" -> fingerprint ) )
+        metaSelector = BSONDocument( "_id" -> mtId  )
+        updatedDataSize = Math.max( currentMetadata.map(_.dataSize).getOrElse( 0 ), blockNum*blockSize + block.length )
+        metaUpdateData = BSONDocument( "$set" -> BSONDocument( "fingerprints." + blockNum -> BSONLong( fingerprint ), "dataSize" -> updatedDataSize ) )
+        blockUpdateResult <- blockColl.update( blockSelector, blockSetData, upsert = true )
+        metadataUpdateResult <- metaColl.update( metaSelector, metaUpdateData )
+
+      } yield SetBlockResponse( ident, blockNum, blockUpdateResult.ok && metadataUpdateResult.ok )
 
     } recover {
       case _: Throwable =>
