@@ -22,6 +22,9 @@ class DiffServiceMasterActor( dataBlockSize:Int, persistenceActorProps: String =
 
       getActor( ident, mapping ) forward msg
 
+    case msg@PushDataBlock( ident, _, _ ) =>
+      getActor( ident, mapping ) forward msg
+
     case c@CompareRequest( ident  ) =>
       if( mapping.contains( ident ) ){
         mapping( ident ) forward c

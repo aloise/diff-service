@@ -67,7 +67,7 @@ class PersistenceActorProxy(dataIdent:String, stream:String, blockSize:Int, pers
     } { actor =>
 
       val dataSize = wholeDataArray.length
-      val blockCount = if( dataSize > 0 ) (dataSize - 1) / blockSize else 0 // amount of blocks minus 1
+      val blockCount = if( dataSize > 0 ) (dataSize - 1) / blockSize else -1 // amount of blocks minus 1
 
       // delete previous blocks first
 

@@ -14,13 +14,14 @@ import spray.json._
 import spray.json.DefaultJsonProtocol._
 import akka.stream.scaladsl._
 import akka.util.{ByteString, Timeout}
-import name.aloise.assignment4c.actors.DiffServiceActor.{CompareResponse, PushDataResponse, RemoveResponse}
+import name.aloise.assignment4c.actors.DiffServiceActor._
 import name.aloise.assignment4c.models.DataDifferentPart
 import java.util.Base64
 import java.nio.charset.StandardCharsets
 
 import com.typesafe.config.Config
 import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, MemoryBlockActor, MongoBlockActor}
+import name.aloise.assignment4c.server.flow.Chunker
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -64,7 +65,7 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
     }
   }
 
-  val persistentActorProps : String => Props = { ident =>
+  val storageActorProps : String => Props = { ident =>
 
     val ( _, clazz ) = storageEngineWithClass
 
@@ -75,7 +76,7 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
   // data processing system
   val processingSystem = ActorSystem("diff-processing-service-system")
 
-  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize, persistentActorProps ) )
+  val diffServiceMasterActor = processingSystem.actorOf( Props( classOf[DiffServiceMasterActor], dataBlockSize, storageActorProps ) )
 
   val serviceVersionPrefix = "v"+serviceVersion
 
@@ -98,6 +99,8 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
   }
 
 
+
+
   /**
     * Main method to hande /v1/diff requests
     *
@@ -115,6 +118,13 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
         if (leftOrRight == "left" || leftOrRight == "right") && (httpMethod == POST) =>
           pushDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)(responseTimeout)
 
+
+      // more efficient streaming version - binary data
+      case Slash(Segment(ident, Slash(Segment(leftOrRight, Uri.Path.Empty))))
+        if (leftOrRight == "left.bin" || leftOrRight == "right.bin") && (httpMethod == POST) =>
+        pushStreamDataRequest(ident, leftOrRight, requestEntity, maxPayloadSize)(responseTimeout)
+
+
       // remove the ident
       case Slash(Segment(ident, Slash(Segment("remove", Uri.Path.Empty)))) if httpMethod == DELETE =>
         diffServiceMasterActor.ask(DiffServiceActor.Remove(ident))(responseTimeout).mapTo[RemoveResponse].map { _ =>
@@ -127,7 +137,6 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
 
       // query results
       case Slash(Segment(ident, Uri.Path.Empty)) if httpMethod == GET =>
-
         getDiffResponse(ident)(responseTimeout)
 
 
@@ -175,6 +184,39 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
     }
 
   }
+
+  def pushStreamDataRequest( ident:String, leftOrRightWithExtension:String, requestEntity: RequestEntity, sizeLimit:Int = 16*1024*1024 )(implicit responseAwaitTimeout:Timeout) = {
+
+    val Array( leftOrRight, _ ) = leftOrRightWithExtension.split("\\.", 2 )
+
+    if ( DiffServiceActor.Stream.AllowedStreamNames.contains( leftOrRight ) ) {
+
+      val blockSink = Sink.foreach[ByteString] { block =>
+
+        ( diffServiceMasterActor ask PushDataBlock( ident, leftOrRight, block.toArray ) ).mapTo[PushDataBlockResponse]
+
+      }
+
+      val entity = requestEntity.withoutSizeLimit().dataBytes.via( new Chunker( dataBlockSize ) )
+
+      // clean existing data first
+      ( diffServiceMasterActor ask PushData( ident, leftOrRight, Array[Byte]() ) ).mapTo[PushDataResponse].flatMap { response =>
+
+        if( response.success ) {
+          entity.runWith(blockSink).map { _ =>
+            jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
+          }
+        } else {
+          Future.successful( jsonError("failed_to_clean_the_stream") )
+        }
+      }
+
+    } else {
+      Future.successful(jsonError("invalid_data_block_param"))
+    }
+
+  }
+
 
   /**
     * Update indent with data blocks. Allows JSON payload up to sizeLimit Bytes
