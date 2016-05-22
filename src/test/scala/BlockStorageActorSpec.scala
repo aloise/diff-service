@@ -1,6 +1,7 @@
 import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.Config
+import name.aloise.assignment4c.actors.DiffServiceActor.PushDataBlock
 import name.aloise.assignment4c.actors.persistence.BlockStorageActor._
 import name.aloise.assignment4c.actors.persistence._
 import name.aloise.assignment4c.models.AsyncDataBlockStorage
@@ -113,7 +114,7 @@ abstract class BlockStorageActorSpec( val actorName:String, val config:Config, v
       response.fingerprint should contain ( altDataBlock0Fingerprint )
     }
 
-    "delete the data properly" in {
+    "delete the data properly finally" in {
       actor ! Delete( randomIdent )
       expectMsgType[DeleteResponse]
     }

@@ -1,4 +1,4 @@
-package name.aloise.assignment4c.server
+package name.aloise.assignment4c.server.flow
 
 import akka.stream._
 import akka.stream.stage._
@@ -22,7 +22,6 @@ class BlockDecoder(blockSize:Int) extends GraphStage[FlowShape[ByteString, ByteS
 
     setHandler(out, new OutHandler {
       override def onPull(): Unit = {
-
         pull(in)
       }
     })
@@ -32,7 +31,8 @@ class BlockDecoder(blockSize:Int) extends GraphStage[FlowShape[ByteString, ByteS
         val chunk = grab(in)
 
 //        digest.update(chunk.toArray)
-        pull(in)
+        push( out, chunk)
+        // pull(in)
       }
 
       override def onUpstreamFinish(): Unit = {

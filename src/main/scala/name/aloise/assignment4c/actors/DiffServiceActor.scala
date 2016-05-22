@@ -84,7 +84,6 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
       // context.become( defaultBehavior( , right, None ), discardOld = true)
 
-
     case CompareRequest( ident ) if ident == id =>
 
       val originalSender = sender()

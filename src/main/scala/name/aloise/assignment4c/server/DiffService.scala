@@ -19,9 +19,10 @@ import name.aloise.assignment4c.models.DataDifferentPart
 import java.util.Base64
 import java.nio.charset.StandardCharsets
 
+import akka.{Done, NotUsed}
 import com.typesafe.config.Config
 import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, MemoryBlockActor, MongoBlockActor}
-import name.aloise.assignment4c.server.flow.Chunker
+import name.aloise.assignment4c.server.flow.{BlockDecoder, Chunker}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -90,7 +91,7 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
       Future.successful( greetingJson )
 
     // Main Route - parse ID and left/right param
-    case HttpRequest( httpMethod, Uri( _, _, Slash( Segment( `serviceVersionPrefix`, Slash( Segment( "diff", dataParts ) ) ) ), _, _ ) , _, entity, _ ) =>
+    case h@HttpRequest( httpMethod, Uri( _, _, Slash( Segment( `serviceVersionPrefix`, Slash( Segment( "diff", dataParts ) ) ) ), _, _ ) , _, entity, _ ) =>
       // process all /v1/diff requests
       diffRequestHandler(httpMethod, dataParts, entity)
 
@@ -191,24 +192,35 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
 
     if ( DiffServiceActor.Stream.AllowedStreamNames.contains( leftOrRight ) ) {
 
-      val blockSink = Sink.foreach[ByteString] { block =>
-
-        ( diffServiceMasterActor ask PushDataBlock( ident, leftOrRight, block.toArray ) ).mapTo[PushDataBlockResponse]
-
-      }
-
-      val entity = requestEntity.withoutSizeLimit().dataBytes.via( new Chunker( dataBlockSize ) )
+      val entitySource =
+        requestEntity.
+          withoutSizeLimit().
+          dataBytes.
+          via( new Chunker( dataBlockSize ) ).
+//          via( new BlockDecoder(dataBlockSize)).
+          via( Flow.fromFunction( byteString => PushDataBlock( ident, leftOrRight, byteString.toArray ) ) ).
+          via( Flow[PushDataBlock].map { block => ( diffServiceMasterActor ask block ).mapTo[PushDataBlockResponse] } )
 
       // clean existing data first
       ( diffServiceMasterActor ask PushData( ident, leftOrRight, Array[Byte]() ) ).mapTo[PushDataResponse].flatMap { response =>
 
-        if( response.success ) {
-          entity.runWith(blockSink).map { _ =>
-            jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
-          }
+        if (response.success) {
+          entitySource.
+            runWith(Sink.seq).
+            flatMap { blockResponses =>
+              Future.sequence(blockResponses).map { _ =>
+
+                jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
+              } recover {
+                case ex: Throwable =>
+                  jsonError("failed_to_push_blocks")
+              }
+
+            }
         } else {
-          Future.successful( jsonError("failed_to_clean_the_stream") )
+          Future.successful(jsonError("failed_to_clean_the_stream"))
         }
+
       }
 
     } else {

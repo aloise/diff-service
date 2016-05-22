@@ -98,7 +98,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
       "not accept new data block with incorrect payload ( exceeding the max payload size )" in {
         val hugePayload = "xx"*maxPayloadSize
-        val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData(hugePayload).asString
+        val result = Http(getServiceUrl +"v1/diff/blahblah/left" ).postData(hugePayload).options( HttpOptions.readTimeout( 60*1000 ) ).asString
         ( result.code / 100 ) should not be 2
         result.body.parseJson.asJsObject.fields("error").convertTo[String] shouldBe "json_format_error"
       }
@@ -152,6 +152,15 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
         // SGVsbG8gd29ybFgh -> "Hello worlX!"
         val result = Http(getServiceUrl +"v1/diff/test/left" ).postData("""{"data":"SGVsbG8gd29ybFgh"}""").asString
         ( result.code / 100 ) shouldBe 2
+      }
+
+
+      "accept a data stream on new ident" in {
+        val stream = "xxx"*( 1024*1024*128 ) // stream exceeds the payload limit
+        val result = Http(getServiceUrl +"v1/diff/stream/left.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
+        result.body shouldBe "test"
+        ( result.code / 100 ) shouldBe 2
+        result.body.parseJson.asJsObject.fields("status") shouldBe JsBoolean(true)
       }
 
       "get a response for `test` ident - content should be test same again" in {
