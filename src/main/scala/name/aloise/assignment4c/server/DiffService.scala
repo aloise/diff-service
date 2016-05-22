@@ -201,6 +201,8 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
           via( Flow.fromFunction( byteString => PushDataBlock( ident, leftOrRight, byteString.toArray ) ) ).
           via( Flow[PushDataBlock].map { block => ( diffServiceMasterActor ask block ).mapTo[PushDataBlockResponse] } )
 
+
+
       // clean existing data first
       ( diffServiceMasterActor ask PushData( ident, leftOrRight, Array[Byte]() ) ).mapTo[PushDataResponse].flatMap { response =>
 

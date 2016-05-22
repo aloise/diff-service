@@ -41,7 +41,9 @@ class Chunker(val chunkSize: Int) extends GraphStage[FlowShape[ByteString, ByteS
         // elements left in buffer, keep accepting downstream pulls
         // and push from buffer until buffer is emitted
 
-        if (buffer.isEmpty) completeStage()
+        if (buffer.isEmpty)
+          completeStage()
+
       }
     })
 

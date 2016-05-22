@@ -154,13 +154,35 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
         ( result.code / 100 ) shouldBe 2
       }
 
+      val bigPostString = "xxx"*( 1024*1024 )
 
-      "accept a data stream on new ident" in {
-        val stream = "xxx"*( 1024*1024*128 ) // stream exceeds the payload limit
+      "accept a left data stream on new ident" in {
+        val stream = bigPostString + "Z" // stream exceeds the payload limit
         val result = Http(getServiceUrl +"v1/diff/stream/left.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
         ( result.code / 100 ) shouldBe 2
         result.body.parseJson.asJsObject.fields("success") shouldBe JsBoolean(true)
       }
+
+      "accept a right data stream on new ident" in {
+
+        val stream = bigPostString + "A" // stream exceeds the payload limit
+        val result = Http(getServiceUrl +"v1/diff/stream/right.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
+        ( result.code / 100 ) shouldBe 2
+        result.body.parseJson.asJsObject.fields("success") shouldBe JsBoolean(true)
+      }
+
+      "return a correct comparison response of two streams" in {
+        val result = Http(getServiceUrl +"v1/diff/stream" ).asString
+
+        val responseObj = result.body.parseJson.convertTo[GetIdentResponse]
+
+        ( result.code / 100 ) shouldBe 2
+
+        responseObj.result shouldBe "NotEqual"
+
+        responseObj.difference should contain ( GetIdentResponseDiffItem( bigPostString.length, 1) )
+      }
+
 
       "get a response for `test` ident - content should be test same again" in {
         val result = Http(getServiceUrl +"v1/diff/test" ).asString
