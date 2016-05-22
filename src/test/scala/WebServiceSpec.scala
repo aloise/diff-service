@@ -154,10 +154,10 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
         ( result.code / 100 ) shouldBe 2
       }
 
-      val bigPostString = "xxx"*( 1024*1024 )
+      val bigPostString = "xxx"*( 1024*1024*128 + 15 )
 
       "accept a left data stream on new ident" in {
-        val stream = bigPostString + "Z" // stream exceeds the payload limit
+        val stream = "1" + bigPostString + "Z" // stream exceeds the payload limit
         val result = Http(getServiceUrl +"v1/diff/stream/left.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
         ( result.code / 100 ) shouldBe 2
         result.body.parseJson.asJsObject.fields("success") shouldBe JsBoolean(true)
@@ -165,7 +165,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
       "accept a right data stream on new ident" in {
 
-        val stream = bigPostString + "A" // stream exceeds the payload limit
+        val stream = "2" + bigPostString + "A" // stream exceeds the payload limit
         val result = Http(getServiceUrl +"v1/diff/stream/right.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
         ( result.code / 100 ) shouldBe 2
         result.body.parseJson.asJsObject.fields("success") shouldBe JsBoolean(true)
@@ -180,7 +180,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
         responseObj.result shouldBe "NotEqual"
 
-        responseObj.difference should contain ( GetIdentResponseDiffItem( bigPostString.length, 1) )
+        responseObj.difference should contain ( GetIdentResponseDiffItem( bigPostString.length+1, 1), GetIdentResponseDiffItem( 0, 1) )
       }
 
 

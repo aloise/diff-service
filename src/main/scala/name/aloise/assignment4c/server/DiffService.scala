@@ -1,6 +1,6 @@
 package name.aloise.assignment4c.server
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.HttpMethods._
@@ -21,7 +21,8 @@ import java.nio.charset.StandardCharsets
 
 import akka.{Done, NotUsed}
 import com.typesafe.config.Config
-import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, MemoryBlockActor, MongoBlockActor}
+import name.aloise.assignment4c.actors.persistence.FlowStorageProxy.PushBlockResponses
+import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, FlowStorageProxy, MemoryBlockActor, MongoBlockActor}
 import name.aloise.assignment4c.server.flow.{BlockDecoder, Chunker}
 
 import scala.concurrent.duration._
@@ -103,7 +104,7 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
 
 
   /**
-    * Main method to hande /v1/diff requests
+    * Main method to handle /v1/diff requests
     *
     * @param httpMethod - either GET or POST - update the data block or get the difference
     * @param dataParts - the rest of the request URL that consists of ident and options left/right params
@@ -198,27 +199,42 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
           dataBytes.
 //          via( new Chunker( dataBlockSize ) ).
 //          via( new BlockDecoder(dataBlockSize)).
-          via( Flow.fromFunction( byteString => PushDataBlock( ident, leftOrRight, byteString.toArray ) ) ).
-          via( Flow[PushDataBlock].map { block => ( diffServiceMasterActor ask block ).mapTo[PushDataBlockResponse] } )
+          via( Flow.fromFunction( byteString => PushDataBlock( ident, leftOrRight, byteString.toArray ) ) )
+          // via( Flow[PushDataBlock].map { block => ( diffServiceMasterActor ask block ).mapTo[PushDataBlockResponse] } )
+
 
 
 
       // clean existing data first
       ( diffServiceMasterActor ask PushData( ident, leftOrRight, Array[Byte]() ) ).mapTo[PushDataResponse].flatMap { response =>
 
+        val processingProxy = processingSystem.actorOf( Props( classOf[FlowStorageProxy], ident, leftOrRight, diffServiceMasterActor  ) )
+
+        val completionFuture = processingProxy.ask( FlowStorageProxy.IsComplete() )( Timeout( 1.hour ), ActorRef.noSender )
+
         if (response.success) {
           entitySource.
-            runWith(Sink.seq).
-            flatMap { blockResponses =>
-              Future.sequence(blockResponses).map { _ =>
+            to( Sink.actorRefWithAck(processingProxy, FlowStorageProxy.Init(), FlowStorageProxy.AckMessage(), FlowStorageProxy.Complete() )).
+            run()
+            completionFuture.mapTo[FlowStorageProxy.PushBlockResponses].map { pushBlockResponses =>
 
-                jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
-              } recover {
-                case ex: Throwable =>
-                  jsonError("failed_to_push_blocks")
-              }
+              val isSuccess:Boolean = pushBlockResponses.responses.forall( b => b )
 
+              jsonSuccess(JsObject("success" -> JsBoolean( isSuccess ), "ident" -> JsString(ident), "stream" -> JsTrue))
             }
+
+
+          /*
+                      map { blockResponses =>
+                        Future.sequence(blockResponses).map { _ =>
+
+                          jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
+                        } recover {
+                          case ex: Throwable =>
+                            jsonError("failed_to_push_blocks")
+                        }
+
+            }*/
         } else {
           Future.successful(jsonError("failed_to_clean_the_stream"))
         }

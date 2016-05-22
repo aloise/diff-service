@@ -135,6 +135,10 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
     case PushDataBlock( ident, stream, newDataBlock ) if ident == id =>
 
+      if( ident.contains("stream") ){
+        println("PushDataBlock", newDataBlock.length, " / " + blockStorage( stream ).size )
+      }
+
       if( newDataBlock.length > 0 ){
 
         blockStorage.get( stream ).foreach { blockStorageItem =>
@@ -169,7 +173,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
                   if (lastExistingBlockSize >= blockSize) {
                     None
                   } else {
-                    val newBlock = Array.fill[Byte](Math.min(blockSize, newDataBlockSize))(0)
+                    val newBlock = Array.fill[Byte](Math.min(blockSize, newDataBlockSize + lastExistingBlockSize ))(0)
                     // copy from existing block
                     for (i <- 0 until lastExistingBlockSize) newBlock(i) = lastExistingBlock(i)
                     // fill the rest with new data
@@ -179,7 +183,7 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
                   }
 
                 val newStartIndex = initialBlockFromExistingWithNewStartIndex.fold(0)(_._1)
-                val newBlocksCount = (((newDataBlockSize - newStartIndex) - 1) / blockSize) + 1
+                val newBlocksCount = if( newDataBlockSize - newStartIndex >= 0 ) (((newDataBlockSize - newStartIndex) - 1) / blockSize) + 1 else 0
 
                 val blocksToPush: Seq[(Int, (Array[Byte],Fingerprint))] =
                   if (newBlocksCount > 0) {
