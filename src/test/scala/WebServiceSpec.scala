@@ -158,9 +158,8 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
       "accept a data stream on new ident" in {
         val stream = "xxx"*( 1024*1024*128 ) // stream exceeds the payload limit
         val result = Http(getServiceUrl +"v1/diff/stream/left.bin" ).postData(stream).options( HttpOptions.readTimeout( 60*1000 ) ).asString
-        result.body shouldBe "test"
         ( result.code / 100 ) shouldBe 2
-        result.body.parseJson.asJsObject.fields("status") shouldBe JsBoolean(true)
+        result.body.parseJson.asJsObject.fields("success") shouldBe JsBoolean(true)
       }
 
       "get a response for `test` ident - content should be test same again" in {

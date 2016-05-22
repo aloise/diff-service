@@ -196,7 +196,7 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
         requestEntity.
           withoutSizeLimit().
           dataBytes.
-          via( new Chunker( dataBlockSize ) ).
+//          via( new Chunker( dataBlockSize ) ).
 //          via( new BlockDecoder(dataBlockSize)).
           via( Flow.fromFunction( byteString => PushDataBlock( ident, leftOrRight, byteString.toArray ) ) ).
           via( Flow[PushDataBlock].map { block => ( diffServiceMasterActor ask block ).mapTo[PushDataBlockResponse] } )

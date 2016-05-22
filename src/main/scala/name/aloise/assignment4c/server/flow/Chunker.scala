@@ -33,37 +33,33 @@ class Chunker(val chunkSize: Int) extends GraphStage[FlowShape[ByteString, ByteS
 
         val elem = grab(in)
         buffer ++= elem
+
         emitChunk()
       }
 
       override def onUpstreamFinish(): Unit = {
-        if (buffer.isEmpty) completeStage()
         // elements left in buffer, keep accepting downstream pulls
         // and push from buffer until buffer is emitted
+
+        if (buffer.isEmpty) completeStage()
       }
     })
 
     private def emitChunk(): Unit = {
-      if (buffer.isEmpty /*|| ( buffer.length < chunkSize )*/ ) {
+
+      println("emit " + buffer.size + " " + isClosed(in))
+
+      if (buffer.isEmpty ) {
         if (isClosed(in))
           completeStage()
         else
           pull(in)
       } else {
-          if( isClosed(in) ){
 
-            push(out, buffer)
+        val (chunk, nextBuffer) = buffer.splitAt(chunkSize)
+        buffer = nextBuffer
 
-            completeStage()
-
-          } else {
-            val (chunk, nextBuffer) = buffer.splitAt(chunkSize)
-            buffer = nextBuffer
-            println("buffer size : " + buffer.length)
-            push(out, chunk)
-          }
-
-
+        push(out, chunk)
 
       }
     }
