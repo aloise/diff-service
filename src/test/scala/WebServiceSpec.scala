@@ -154,7 +154,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
         ( result.code / 100 ) shouldBe 2
       }
 
-      val bigPostString = "xxx"*( 1024*1024*128 + 15 )
+      val bigPostString = "xx"*( maxPayloadSize*3 + 113 )
 
       "accept a left data stream on new ident" in {
         val stream = "1" + bigPostString + "Z" // stream exceeds the payload limit
@@ -180,7 +180,7 @@ class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
         responseObj.result shouldBe "NotEqual"
 
-        responseObj.difference should contain ( GetIdentResponseDiffItem( bigPostString.length+1, 1), GetIdentResponseDiffItem( 0, 1) )
+        responseObj.difference should contain allOf ( GetIdentResponseDiffItem( bigPostString.length+1, 1), GetIdentResponseDiffItem( 0, 1) )
       }
 
 

@@ -54,8 +54,7 @@ class FlowStorageProxy( ident:String, stream:String, master:ActorRef ) extends A
       onCompleteRef = sender()
 
     case Complete( _ )  =>
-      println("COMPLETE")
-//      sender() ! AckMessage
+
       onCompleteRef ! PushBlockResponses( blockResponses )
       self ! PoisonPill
 

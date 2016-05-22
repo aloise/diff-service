@@ -135,10 +135,6 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
 
     case PushDataBlock( ident, stream, newDataBlock ) if ident == id =>
 
-      if( ident.contains("stream") ){
-        println("PushDataBlock", newDataBlock.length, " / " + blockStorage( stream ).size )
-      }
-
       if( newDataBlock.length > 0 ){
 
         blockStorage.get( stream ).foreach { blockStorageItem =>
@@ -175,9 +171,11 @@ class DiffServiceActor( id:String, blockSize:Int, persistenceActorProps: String 
                   } else {
                     val newBlock = Array.fill[Byte](Math.min(blockSize, newDataBlockSize + lastExistingBlockSize ))(0)
                     // copy from existing block
-                    for (i <- 0 until lastExistingBlockSize) newBlock(i) = lastExistingBlock(i)
+                    for (i <- 0 until lastExistingBlockSize)
+                      newBlock(i) = lastExistingBlock(i)
                     // fill the rest with new data
-                    for (i <- lastExistingBlockSize until Math.min(blockSize, newDataBlockSize)) newBlock(i) = newDataBlock(i - lastExistingBlockSize)
+                    for (i <- lastExistingBlockSize until Math.min(blockSize, lastExistingBlockSize + newDataBlockSize))
+                      newBlock(i) = newDataBlock(i - lastExistingBlockSize)
 
                     Some(blockSize - lastExistingBlockSize, newBlock)
                   }

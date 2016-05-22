@@ -49,7 +49,6 @@ class Chunker(val chunkSize: Int) extends GraphStage[FlowShape[ByteString, ByteS
 
     private def emitChunk(): Unit = {
 
-      println("emit " + buffer.size + " " + isClosed(in))
 
       if (buffer.isEmpty ) {
         if (isClosed(in))
