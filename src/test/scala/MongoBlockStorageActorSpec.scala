@@ -1,6 +1,6 @@
 import akka.actor.Props
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.actors.persistence.{MemoryBlockActor, MongoBlockActor}
+import name.aloise.diffservice.actors.persistence.{MemoryBlockActor, MongoBlockActor}
 
 /**
   * User: aloise

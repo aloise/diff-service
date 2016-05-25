@@ -1,4 +1,4 @@
-package name.aloise.assignment4c.models
+package name.aloise.diffservice.models
 
 import java.util.zip.CRC32
 

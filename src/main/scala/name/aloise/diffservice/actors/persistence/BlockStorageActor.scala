@@ -1,10 +1,10 @@
-package name.aloise.assignment4c.actors.persistence
+package name.aloise.diffservice.actors.persistence
 
 import akka.actor.Actor
 import akka.stream.actor.ActorPublisherMessage.Request
 import com.typesafe.config.Config
-import name.aloise.assignment4c.models.AsyncDataBlockStorage
-import name.aloise.assignment4c.models.AsyncDataBlockStorage._
+import name.aloise.diffservice.models.AsyncDataBlockStorage
+import name.aloise.diffservice.models.AsyncDataBlockStorage._
 
 /**
   * User: aloise

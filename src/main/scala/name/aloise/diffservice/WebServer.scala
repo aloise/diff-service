@@ -1,4 +1,4 @@
-package name.aloise.assignment4c
+package name.aloise.diffservice
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.{ContentTypes, HttpEntity}
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.server.DiffService
+import name.aloise.diffservice.server.DiffService
 import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.Await

@@ -1,13 +1,13 @@
-package name.aloise.assignment4c.actors.persistence
+package name.aloise.diffservice.actors.persistence
 
 import akka.actor.{Actor, ActorRef, ActorRefFactory, Props}
 import akka.util.Timeout
 
 import scala.concurrent.{ExecutionContext, Future}
 import akka.pattern.ask
-import name.aloise.assignment4c.actors.persistence.BlockStorageActor.{GetBlockResponse, SetBlockResponse}
-import name.aloise.assignment4c.models.AsyncDataBlockStorage
-import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
+import name.aloise.diffservice.actors.persistence.BlockStorageActor.{GetBlockResponse, SetBlockResponse}
+import name.aloise.diffservice.models.AsyncDataBlockStorage
+import name.aloise.diffservice.models.AsyncDataBlockStorage.Fingerprint
 
 import scala.collection.immutable.IndexedSeq
 /**

@@ -1,12 +1,12 @@
 import akka.actor.{Actor, ActorRef, ActorSystem, PoisonPill, Props}
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.Config
-import name.aloise.assignment4c.actors.DiffServiceActor.PushDataBlock
-import name.aloise.assignment4c.actors.persistence.BlockStorageActor._
-import name.aloise.assignment4c.actors.persistence._
-import name.aloise.assignment4c.models.AsyncDataBlockStorage
-import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
-import name.aloise.assignment4c.server.DiffService.Params.UpdateDataBlock
+import name.aloise.diffservice.actors.DiffServiceActor.PushDataBlock
+import name.aloise.diffservice.actors.persistence.BlockStorageActor._
+import name.aloise.diffservice.actors.persistence._
+import name.aloise.diffservice.models.AsyncDataBlockStorage
+import name.aloise.diffservice.models.AsyncDataBlockStorage.Fingerprint
+import name.aloise.diffservice.server.DiffService.Params.UpdateDataBlock
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 
 /**

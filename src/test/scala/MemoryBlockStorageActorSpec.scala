@@ -1,6 +1,6 @@
 import akka.actor.Props
 import com.typesafe.config.{Config, ConfigFactory}
-import name.aloise.assignment4c.actors.persistence.MemoryBlockActor
+import name.aloise.diffservice.actors.persistence.MemoryBlockActor
 /**
   * User: aloise
   * Date: 20.05.16

@@ -1,7 +1,7 @@
-package name.aloise.assignment4c.actors.persistence
+package name.aloise.diffservice.actors.persistence
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Stash}
-import name.aloise.assignment4c.actors.DiffServiceActor.{PushDataBlock, PushDataBlockResponse}
+import name.aloise.diffservice.actors.DiffServiceActor.{PushDataBlock, PushDataBlockResponse}
 
 /**
   * User: aloise

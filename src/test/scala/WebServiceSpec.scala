@@ -5,7 +5,7 @@ import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.Flow
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.server.DiffService
+import name.aloise.diffservice.server.DiffService
 import org.scalatest._
 import spray.json._
 import spray.json.DefaultJsonProtocol._
@@ -20,8 +20,8 @@ import net.ceedubs.ficus.Ficus._
   */
 class WebServiceSpec extends WordSpec with Matchers with BeforeAndAfterAll {
 
-  import name.aloise.assignment4c.WebServer.serverFactory
-  import name.aloise.assignment4c.WebServer.Config._
+  import name.aloise.diffservice.WebServer.serverFactory
+  import name.aloise.diffservice.WebServer.Config._
 
   case class GetIdentResponseDiffItem( start:Int, length:Int )
   case class GetIdentResponse( result:String, difference:Seq[GetIdentResponseDiffItem] )

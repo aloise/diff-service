@@ -1,14 +1,14 @@
-package name.aloise.assignment4c.actors.persistence
+package name.aloise.diffservice.actors.persistence
 import akka.actor.Actor.Receive
 import com.typesafe.config.Config
-import name.aloise.assignment4c.actors.persistence.BlockStorageActor._
+import name.aloise.diffservice.actors.persistence.BlockStorageActor._
 import reactivemongo.api.{MongoConnection, MongoDriver}
 import net.ceedubs.ficus.Ficus._
 import reactivemongo.api.collections.bson.BSONCollection
 import reactivemongo.bson.{BSONDocument, _}
 import akka.pattern._
-import name.aloise.assignment4c.models.AsyncDataBlockStorage
-import name.aloise.assignment4c.models.AsyncDataBlockStorage._
+import name.aloise.diffservice.models.AsyncDataBlockStorage
+import name.aloise.diffservice.models.AsyncDataBlockStorage._
 import reactivemongo.bson
 
 import scala.concurrent.Future
@@ -95,6 +95,7 @@ class MongoBlockActor( ident:String, blockSize:Int, config:Config ) extends Bloc
 
   /**
     * Updates the data blocks. It includes the metadata collection update - both fingerprint and data size
+ *
     * @param mt Current Metadata
     * @param blockNum Block number starting from zero
     * @param block Data block

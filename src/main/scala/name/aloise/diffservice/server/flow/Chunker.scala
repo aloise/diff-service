@@ -1,4 +1,4 @@
-package name.aloise.assignment4c.server.flow
+package name.aloise.diffservice.server.flow
 
 import akka.stream._
 import akka.stream.stage._

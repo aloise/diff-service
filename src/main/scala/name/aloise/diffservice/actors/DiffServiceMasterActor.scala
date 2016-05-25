@@ -1,9 +1,9 @@
-package name.aloise.assignment4c.actors
+package name.aloise.diffservice.actors
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Props}
 import akka.actor.Actor.Receive
-import name.aloise.assignment4c.actors.persistence.PersistenceActorProxy
-import name.aloise.assignment4c.models.DataComparisonResult
+import name.aloise.diffservice.actors.persistence.PersistenceActorProxy
+import name.aloise.diffservice.models.DataComparisonResult
 
 /**
   * User: aloise

@@ -1,4 +1,4 @@
-package name.aloise.assignment4c.server
+package name.aloise.diffservice.server
 
 import akka.actor.{Actor, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
@@ -8,22 +8,22 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.Uri.Path._
 import akka.http.scaladsl.model.Uri.Path
 import akka.stream.ActorMaterializer
-import name.aloise.assignment4c.actors.{DiffServiceActor, DiffServiceMasterActor}
+import name.aloise.diffservice.actors.{DiffServiceActor, DiffServiceMasterActor}
 import akka.pattern.{AskTimeoutException, ask}
 import spray.json._
 import spray.json.DefaultJsonProtocol._
 import akka.stream.scaladsl._
 import akka.util.{ByteString, Timeout}
-import name.aloise.assignment4c.actors.DiffServiceActor._
-import name.aloise.assignment4c.models.DataDifferentPart
+import name.aloise.diffservice.actors.DiffServiceActor._
+import name.aloise.diffservice.models.DataDifferentPart
 import java.util.Base64
 import java.nio.charset.StandardCharsets
 
 import akka.{Done, NotUsed}
 import com.typesafe.config.Config
-import name.aloise.assignment4c.actors.persistence.FlowStorageProxy.PushBlockResponses
-import name.aloise.assignment4c.actors.persistence.{BlockStorageActor, FlowStorageProxy, MemoryBlockActor, MongoBlockActor}
-import name.aloise.assignment4c.server.flow.{BlockDecoder, Chunker}
+import name.aloise.diffservice.actors.persistence.FlowStorageProxy.PushBlockResponses
+import name.aloise.diffservice.actors.persistence.{BlockStorageActor, FlowStorageProxy, MemoryBlockActor, MongoBlockActor}
+import name.aloise.diffservice.server.flow.{BlockDecoder, Chunker}
 
 import scala.concurrent.duration._
 import scala.concurrent.Future
@@ -223,18 +223,6 @@ class DiffService(bindAddress:String, bindPort:Int, dataBlockSize:Int, maxPayloa
               jsonSuccess(JsObject("success" -> JsBoolean( isSuccess ), "ident" -> JsString(ident), "stream" -> JsTrue))
             }
 
-
-          /*
-                      map { blockResponses =>
-                        Future.sequence(blockResponses).map { _ =>
-
-                          jsonSuccess(JsObject("success" -> JsTrue, "ident" -> JsString(ident), "stream" -> JsTrue))
-                        } recover {
-                          case ex: Throwable =>
-                            jsonError("failed_to_push_blocks")
-                        }
-
-            }*/
         } else {
           Future.successful(jsonError("failed_to_clean_the_stream"))
         }

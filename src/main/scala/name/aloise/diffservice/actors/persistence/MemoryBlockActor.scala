@@ -1,8 +1,8 @@
-package name.aloise.assignment4c.actors.persistence
+package name.aloise.diffservice.actors.persistence
 
 import akka.actor.Actor
 import com.typesafe.config.Config
-import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
+import name.aloise.diffservice.models.AsyncDataBlockStorage.Fingerprint
 
 
 /**

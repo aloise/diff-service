@@ -1,8 +1,8 @@
 
 import java.util.zip.CRC32
 
-import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
-import name.aloise.assignment4c.models._
+import name.aloise.diffservice.models.AsyncDataBlockStorage.Fingerprint
+import name.aloise.diffservice.models._
 import org.scalatest._
 
 import scala.concurrent.{Await, Future}

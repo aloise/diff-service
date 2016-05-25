@@ -1,14 +1,14 @@
-package name.aloise.assignment4c.actors
+package name.aloise.diffservice.actors
 
 import akka.actor.{Actor, ActorRef, PoisonPill, Props, Stash}
-import name.aloise.assignment4c.actors.persistence.PersistenceActorProxy
-import name.aloise.assignment4c.models.{AsyncDataBlockStorage, _}
+import name.aloise.diffservice.actors.persistence.PersistenceActorProxy
+import name.aloise.diffservice.models.{AsyncDataBlockStorage, _}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import akka.pattern._
-import name.aloise.assignment4c.actors.persistence.BlockStorageActor.{SetBlock, SetBlockResponse}
-import name.aloise.assignment4c.models.AsyncDataBlockStorage.Fingerprint
+import name.aloise.diffservice.actors.persistence.BlockStorageActor.{SetBlock, SetBlockResponse}
+import name.aloise.diffservice.models.AsyncDataBlockStorage.Fingerprint
 
 /**
   * User: aloise

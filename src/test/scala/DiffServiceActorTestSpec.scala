@@ -1,18 +1,18 @@
 
-import name.aloise.assignment4c.actors.DiffServiceMasterActor
+import name.aloise.diffservice.actors.DiffServiceMasterActor
 import org.scalatest.WordSpec
 import akka.actor.ActorSystem
 import akka.actor.Actor
 import akka.actor.Props
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
 import com.typesafe.config.ConfigFactory
-import name.aloise.assignment4c.actors.DiffServiceActor._
+import name.aloise.diffservice.actors.DiffServiceActor._
 import org.scalatest.WordSpecLike
 import org.scalatest.Matchers
 import org.scalatest.BeforeAndAfterAll
-import name.aloise.assignment4c.actors._
-import name.aloise.assignment4c.actors.persistence.MemoryBlockActor
-import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
+import name.aloise.diffservice.actors._
+import name.aloise.diffservice.actors.persistence.MemoryBlockActor
+import name.aloise.diffservice.models.{DataComparisonResult, DataDifferentPart}
 
 /**
   * User: aloise
@@ -22,7 +22,7 @@ import name.aloise.assignment4c.models.{DataComparisonResult, DataDifferentPart}
 
 class DiffServiceActorTestSpec extends TestKit(ActorSystem("DiffActorSystemTestSpec")) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll {
 
-  import name.aloise.assignment4c.WebServer
+  import name.aloise.diffservice.WebServer
 
 
 
