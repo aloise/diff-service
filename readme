@@ -3,7 +3,7 @@ Data Diff Service
 
 Author: Igor Mordashev <erwaht@gmail.com>
 
-Built with Scala, Akka, Akka IO, Akka HTTP, SBT
+Built with Scala, Akka Reactive Streams, Akka IO, Akka HTTP, SBT
 
 *Requirements:
     - Java 8
