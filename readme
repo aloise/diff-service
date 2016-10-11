@@ -21,7 +21,7 @@ A complete JAR package would be created in the following folder:
 *Run
 
 > cd /path/to/the/jar
-> java -Xmx=1G -jar Assignment4C-assembly-1.0.jar
+> java -Xmx1G -jar Assignment4C-assembly-1.0.jar
 
 *Configure
 
